@@ -1,6 +1,3 @@
-<!--
-  Customized by Dwi Prasetyo (Lokasite)
--->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -8,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Firebase Records Manager</title>
+<title>Inventory Records Manager</title>
 <link rel="icon" href="https://www.bariklanaaqiqah.id//assets/images/favicon.png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -556,7 +553,7 @@ html.print-a4 { page: a4-receipt; }
 
 <script>
 // firebase init - RTDB only, no auth/apiKey needed for basic read/write
-firebase.initializeApp({ databaseURL: 'https://inventory-17966-default-rtdb.asia-southeast1.firebasedatabase.app' });
+firebase.initializeApp({ databaseURL: 'https://inventory-a99e5-default-rtdb.asia-southeast1.firebasedatabase.app' });
 window.db = firebase.database();
 
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function(c) { return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]; }); }
@@ -567,37 +564,8 @@ async function seedDemoData() {
   const usersSnap = await db.ref('users').once('value');
   if (!usersSnap.exists()) {
     await db.ref('users').set({
-      u1: { email: 'admin@demo.com', password: 'admin123', role: 'Admin', name: 'Admin User' },
-      u2: { email: 'user1@demo.com', password: 'user123', role: 'User', name: 'User 1' }
+      u1: { email: 'admin@demo.com', password: 'admin123', role: 'Admin', name: 'Administrator' }
     });
-  }
-  const recSnap = await db.ref('records').once('value');
-  if (!recSnap.exists()) {
-    const cats = ['Electronics', 'Clothing', 'Food', 'Services', 'Other'];
-    const recs = {};
-    for (let i = 1; i <= 6; i++) {
-      const d = new Date(); d.setMonth(d.getMonth() - (6 - i));
-      recs['r' + i] = {
-        name: 'Customer ' + i, email: 'customer' + i + '@demo.com', phone: '0300' + String(1000000 + i),
-        category: cats[(i - 1) % cats.length], amount: i * 100, active: i % 2 === 0,
-        notes: 'Sample note for record ' + i, addedBy: 'admin@demo.com', createdAt: d.toISOString()
-      };
-    }
-    await db.ref('records').set(recs);
-  }
-  const setSnap = await db.ref('settings').once('value');
-  if (!setSnap.exists()) {
-    await db.ref('settings').set({
-      businessName: 'My Business', currencySymbol: 'Rp', currencyCode: 'IDR', taxRate: 0, taxInclusive: false,
-      invoicePrefix: 'INV-', lowStockDefault: 5, receiptHeader: '', receiptFooter: 'Terima kasih atas pembelian Anda!',
-      address: '', phone: '', email: '', logoUrl: ''
-    });
-  }
-  const catSnap = await db.ref('categories').once('value');
-  if (!catSnap.exists()) {
-    const cats = ['Electronics', 'Clothing', 'Food', 'Services', 'Other'];
-    const obj = {}; cats.forEach((c, i) => obj['c' + (i + 1)] = { name: c, createdAt: nowIso() });
-    await db.ref('categories').set(obj);
   }
 }
 seedDemoData();
@@ -1550,7 +1518,7 @@ function LoginPage({ onLogin }) {
     <div className="login-container">
       <div className="login-box">
         <img src={LOGO_URL} alt="Logo" className="login-logo" />
-        <h2>Firebase Records Manager</h2>
+        <h2>Inventory Records Manager</h2>
         <form onSubmit={handleSubmit}>
           <div className="form-group"><label>Email</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
           <div className="form-group"><label>Password</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
@@ -1756,7 +1724,7 @@ function RecordsView({ user, role }) {
     <div className="data-section">
       {load && <TopLoadingBar />}
       <div className="section-header">
-        <h2><i className="fas fa-address-book"></i> Customers</h2>
+        <h2><i className="fas fa-address-book"></i></h2>
         <div className="header-actions"><RefreshBtn onClick={reload} /><button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add Customer</span></button></div>
       </div>
       {!loading && (
@@ -2106,7 +2074,7 @@ function ProductsView({ user, role }) {
     <div className="data-section">
       {load && <TopLoadingBar />}
       <div className="section-header">
-        <h2><i className="fas fa-boxes-stacked"></i> Products</h2>
+        <h2><i className="fas fa-boxes-stacked"></i></h2>
         <div className="header-actions">
           <RefreshBtn onClick={reload} />
           {role !== 'Viewer' && <button className="btn btn-secondary" onClick={() => setShowReorderReport(true)} disabled={reorderRows.length === 0}><i className="fas fa-triangle-exclamation"></i> <span className="btn-label">Print Reorder Report</span></button>}
@@ -2458,7 +2426,7 @@ function StockView({ user, role }) {
     <div className="data-section">
       {load && <TopLoadingBar />}
       <div className="section-header">
-        <h2><i className="fas fa-dolly"></i> Stock In / Out</h2>
+        <h2><i className="fas fa-dolly"></i></h2>
         <div className="header-actions">
           <RefreshBtn onClick={reload} />
           {role === 'Admin' && <button className="btn btn-success" disabled={loading} onClick={() => setModalType('in')}><i className="fas fa-arrow-down"></i> <span className="btn-label">Stock In</span></button>}
@@ -2562,7 +2530,7 @@ function ThermalSlip({ sale }) {
     <div className="thermal-slip-print">
       <div className="ts-header">
         <img src={CFG.logoUrl || LOGO_URL} alt="" className="ts-logo" />
-        <div className="ts-app-name">{CFG.business?.name || 'Firebase Records Manager'}</div>
+        <div className="ts-app-name">{CFG.business?.name || 'Inventory Records Manager'}</div>
         {CFG.business?.address ? <div className="ts-sub">{CFG.business.address}</div> : null}
         {CFG.business?.phone ? <div className="ts-sub">{CFG.business.phone}</div> : null}
         {CFG.receiptHeader ? <div className="ts-sub">{CFG.receiptHeader}</div> : null}
@@ -2863,7 +2831,7 @@ function POSView({ user, role }) {
     <div className="data-section">
       {load && <TopLoadingBar />}
       <div className="section-header">
-        <h2><i className="fas fa-cash-register"></i> QR Sales / POS</h2>
+        <h2><i className="fas fa-cash-register"></i></h2>
         <div className="pos-scan-actions">
           <button className="btn btn-secondary" disabled={!catalogReady} onClick={() => setShowCamera(true)}><i className="fas fa-camera"></i> <span className="btn-label">Camera</span></button>
           <button className="btn btn-secondary" onClick={recallHeld}><i className="fas fa-clock-rotate-left"></i> <span className="btn-label">Held{held.length ? ` (${held.length})` : ''}</span></button>
@@ -3060,7 +3028,7 @@ function SalesHistoryView({ user, role }) {
 
   return (
     <div className="data-section">
-      <div className="section-header"><h2><i className="fas fa-receipt"></i> Sales History</h2><div className="header-actions"><RefreshBtn onClick={reload} /></div></div>
+      <div className="section-header"><h2><i className="fas fa-receipt"></i></h2><div className="header-actions"><RefreshBtn onClick={reload} /></div></div>
       {loading && <TableSkeleton rows={8} columns={10} />}
       <div style={{ display: loading ? 'none' : 'block' }}>
         <table id="salesTable" className="display" style={{ width: '100%' }}></table>
@@ -3183,7 +3151,7 @@ function LogsView() {
   const logs = useMemo(() => (data && data.success ? data.data : []), [data]);
   return (
     <div className="data-section">
-      <div className="section-header"><h2><i className="fas fa-history"></i> Activity Logs</h2></div>
+      <div className="section-header"><h2><i className="fas fa-history"></i></h2></div>
       {loading ? <TableSkeleton rows={6} columns={4} /> : (
         <div className="about-table-wrapper">
           <table className="about-roles-table">
@@ -3297,7 +3265,7 @@ function SuppliersView({ user, role }) {
   return (
     <div className="data-section">
       {load && <TopLoadingBar />}
-      <div className="section-header"><h2><i className="fas fa-truck-field"></i> Suppliers</h2><div className="header-actions"><RefreshBtn onClick={reload} /><button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add Supplier</span></button></div></div>
+      <div className="section-header"><h2><i className="fas fa-truck-field"></i></h2><div className="header-actions"><RefreshBtn onClick={reload} /><button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add Supplier</span></button></div></div>
       {loading && <TableSkeleton rows={8} columns={7} />}
       <div style={{ display: loading ? 'none' : 'block' }}><table id="suppliersTable" className="display" style={{ width: '100%' }}></table>{suppliers.length > 0 && <SummaryBar items={[{ label: 'Suppliers', value: suppliers.length }, { label: 'Total Payable', value: money(totalPayable) }]} />}</div>
       {viewSup && <SupplierHubModal supplier={viewSup} onClose={() => setViewSup(null)} />}
@@ -3407,7 +3375,7 @@ function ExpensesView({ user, role }) {
   return (
     <div className="data-section">
       {load && <TopLoadingBar />}
-      <div className="section-header"><h2><i className="fas fa-money-bill-trend-up"></i> Expenses</h2><div className="header-actions"><RefreshBtn onClick={reload} />{role !== 'Viewer' && <button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add Expense</span></button>}</div></div>
+      <div className="section-header"><h2><i className="fas fa-money-bill-trend-up"></i></h2><div className="header-actions"><RefreshBtn onClick={reload} />{role !== 'Viewer' && <button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add Expense</span></button>}</div></div>
       {!loading && (
         <FiltersPanel onClear={() => setFilters({ dateFrom: '', dateTo: '', category: '' })}>
           <div className="filter-group"><label><i className="fas fa-calendar-alt"></i> Date From</label><input type="date" className="filter-input" value={filters.dateFrom} onChange={(e) => setFilters(f => ({ ...f, dateFrom: e.target.value }))} /></div>
@@ -3632,7 +3600,7 @@ function PurchaseOrdersView({ user, role }) {
   return (
     <div className="data-section">
       {load && <TopLoadingBar />}
-      <div className="section-header"><h2><i className="fas fa-file-invoice-dollar"></i> Purchase Orders</h2><div className="header-actions"><RefreshBtn onClick={reload} /><button className="btn btn-success" disabled={loading} onClick={() => setShowModal(true)}><i className="fas fa-plus"></i> <span className="btn-label">New PO</span></button></div></div>
+      <div className="section-header"><h2><i className="fas fa-file-invoice-dollar"></i></h2><div className="header-actions"><RefreshBtn onClick={reload} /><button className="btn btn-success" disabled={loading} onClick={() => setShowModal(true)}><i className="fas fa-plus"></i> <span className="btn-label">New PO</span></button></div></div>
       {loading && <TableSkeleton rows={8} columns={8} />}
       <div style={{ display: loading ? 'none' : 'block' }}><table id="poTable" className="display" style={{ width: '100%' }}></table>{pos.length > 0 && <SummaryBar items={[{ label: 'POs', value: poSummary.count }, { label: 'Total Value', value: money(poSummary.total) }, { label: 'Open (unreceived)', value: money(poSummary.open) }]} />}</div>
       {showModal && <PurchaseOrderModal suppliers={suppliers} products={products} role={role} onClose={() => setShowModal(false)} onSave={handleSave} />}
@@ -3894,7 +3862,7 @@ function RecipesView({ user, role }) {
     <div className="data-section">
       {load && <TopLoadingBar />}
       <div className="section-header">
-        <h2><i className="fas fa-book-open"></i> Recipes</h2>
+        <h2><i className="fas fa-book-open"></i></h2>
         <div className="header-actions">
           <RefreshBtn onClick={reload} />
           {isAdmin && <button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">New Recipe</span></button>}
@@ -4040,7 +4008,7 @@ function UsersView({ user, role }) {
     <div className="data-section">
       {load && <TopLoadingBar />}
       <div className="section-header">
-        <h2><i className="fas fa-users-cog"></i> Users</h2>
+        <h2><i className="fas fa-users-cog"></i></h2>
         <div className="header-actions"><RefreshBtn onClick={reload} /><button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add User</span></button></div>
       </div>
       {loading && <TableSkeleton rows={5} columns={4} />}
@@ -4060,7 +4028,7 @@ function AboutView() {
       <div className="about-header">
         <div className="about-logo"><img src={LOGO_URL} alt="Developer Logo" /></div>
         <div className="about-title">
-          <h1>Firebase Records Manager</h1>
+          <h1>Inventory Records Manager</h1>
           <p className="about-dev">Developed by <strong>Dwi Prasetyo</strong> (Lokasite)</p>
         </div>
       </div>
@@ -4178,7 +4146,6 @@ function AboutView() {
           <img src="https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEjPDI5pu2UTjyZ4StRhL02eKFqp1Adn2UCSygYbkogv8IcOBRUNsPK6J9aY68FRB6MsweUMlUg9zpAZzGSibiI-PZ8qAMQuihSpgo_7d35kiJBMQFe8m6wvvJmSl4z9sUIMEPHGQBBxtdc-VUylt7omPMI6C72wz6vNF0tKNPOQEuncQg/s1600/498147266_4277352909158791_6036352941346477170_n.jpg" alt="Dwi Prasetyo" className="developer-avatar" />
           <div className="developer-details">
             <h3>Dwi Prasetyo</h3>
-            <p className="developer-brand">Lokasite</p>
             <p>I build custom web apps, dashboards, and automation tools. If you need somthing built for your buisness or project, feel free to reach out!</p>
             <div className="developer-links">
               <a href="https://wa.me/6285385972709" target="_blank" className="dev-link whatsapp"><i className="fab fa-whatsapp"></i> WhatsApp Me</a>
@@ -4237,7 +4204,7 @@ function SettingsView({ user, role }) {
     <div className="data-section">
       {load && <TopLoadingBar />}
       <div className="section-header">
-        <h2><i className="fas fa-gear"></i> Settings</h2>
+        <h2><i className="fas fa-gear"></i></h2>
         <div className="header-actions">
           <button className="btn btn-primary" title="Save Settings" onClick={save} disabled={saving}>{saving ? <><i className="fas fa-spinner fa-spin"></i> <span className="btn-label">Saving...</span></> : <><i className="fas fa-save"></i> <span className="btn-label">Save Settings</span></>}</button>
         </div>
