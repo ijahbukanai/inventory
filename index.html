@@ -1040,6 +1040,36 @@ const CATEGORY_OPTS = [
 const ACTIVE_OPTS = [{ value: '1', label: 'Active' }, { value: '0', label: 'Inactive' }];
 const LOW_STOCK_OPTS = [{ value: '1', label: 'Low Stock Only' }];
 const ROLE_OPTS = [{ value: 'Admin', label: 'Admin' }, { value: 'User', label: 'User' }, { value: 'Viewer', label: 'Viewer' }];
+
+// --- Configurable action-button permissions (Admin toggles these per role in Settings > Permissions) ---
+// Admin always has every permission; these only govern what User/Viewer can do beyond their fixed baseline
+// (e.g. Viewer can never leave Products/Expenses/About regardless of these toggles - see Sidebar/BottomNav).
+const PERMISSION_DEFS = [
+  { key: 'stock_in_out', label: 'Stock In / Stock Out (manual entry)', module: 'Stock In/Out' },
+  { key: 'stock_bulk_receive', label: 'Bulk Receive', module: 'Stock In/Out' },
+  { key: 'stock_stocktake', label: 'Stocktake (Adjustment)', module: 'Stock In/Out' },
+  { key: 'products_add', label: 'Add / Edit Product', module: 'Products' },
+  { key: 'products_print', label: 'Print Reorder Report / QR Labels', module: 'Products' },
+  { key: 'expenses_add', label: 'Add / Edit Expense', module: 'Expenses' },
+  { key: 'po_order', label: 'Save & Order (finalize a PO)', module: 'Purchase Orders' },
+  { key: 'po_receive', label: 'Receive PO into Stock', module: 'Purchase Orders' },
+  { key: 'recipes_manage', label: 'Create / Edit Recipes', module: 'Recipes' },
+];
+// Baseline defaults - used until Admin changes them in Settings > Permissions. Bulk Receive & Stocktake
+// default ON for User per the real-world workflow (User still can't do raw manual Stock In/Out by default).
+const DEFAULT_ROLE_PERMISSIONS = {
+  User: { stock_in_out: false, stock_bulk_receive: true, stock_stocktake: true, products_add: true, products_print: true, expenses_add: false, po_order: false, po_receive: false, recipes_manage: false },
+  Viewer: { stock_in_out: false, stock_bulk_receive: false, stock_stocktake: false, products_add: false, products_print: false, expenses_add: false, po_order: false, po_receive: false, recipes_manage: false }
+};
+// can(key, role, rolePermissions?) - Admin is always true; User/Viewer fall back to the default above
+// until an Admin-configured value exists in settings.rolePermissions.
+function can(key, role, rolePermissions) {
+  if (role === 'Admin') return true;
+  const configured = rolePermissions && rolePermissions[role] ? rolePermissions[role] : null;
+  if (configured && Object.prototype.hasOwnProperty.call(configured, key)) return !!configured[key];
+  const def = DEFAULT_ROLE_PERMISSIONS[role];
+  return !!(def && def[key]);
+}
 const STATUS_OPTS = [{ value: 'active', label: 'Active' }, { value: 'discontinued', label: 'Discontinued' }];
 const PRODUCT_STATUS_FILTER = [{ value: 'active', label: 'Active Only' }, { value: 'discontinued', label: 'Discontinued Only' }];
 const CUSTOMER_TYPE_OPTS = [{ value: 'Retail', label: 'Retail' }, { value: 'Wholesale', label: 'Wholesale' }, { value: 'Lead', label: 'Lead' }, { value: 'VIP', label: 'VIP' }];
@@ -1724,7 +1754,7 @@ function RecordsView({ user, role }) {
     <div className="data-section">
       {load && <TopLoadingBar />}
       <div className="section-header">
-        <h2><i className="fas fa-address-book"></i></h2>
+        <h2><i className="fas fa-address-book"></i> Customers</h2>
         <div className="header-actions"><RefreshBtn onClick={reload} /><button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add Customer</span></button></div>
       </div>
       {!loading && (
@@ -1931,6 +1961,7 @@ function ReorderReportPrint({ rows, onDone }) {
 
 // --- Products View (DataTable CRUD + QR) ---
 function ProductsView({ user, role }) {
+  const { settings } = useConfig();
   const catOpts = useCategoryOpts();
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -2074,7 +2105,7 @@ function ProductsView({ user, role }) {
     <div className="data-section">
       {load && <TopLoadingBar />}
       <div className="section-header">
-        <h2><i className="fas fa-boxes-stacked"></i></h2>
+        <h2><i className="fas fa-boxes-stacked"></i> Products</h2>
         <div className="header-actions">
           <RefreshBtn onClick={reload} />
           {role !== 'Viewer' && <button className="btn btn-secondary" onClick={() => setShowReorderReport(true)} disabled={reorderRows.length === 0}><i className="fas fa-triangle-exclamation"></i> <span className="btn-label">Print Reorder Report</span></button>}
@@ -2310,6 +2341,7 @@ function StockAdjustModal({ products, movements, onClose, onSave }) {
 }
 
 function StockView({ user, role }) {
+  const { settings } = useConfig();
   const [modalType, setModalType] = useState(null);
   const [showBulkIn, setShowBulkIn] = useState(false);
   const [showAdjust, setShowAdjust] = useState(false);
@@ -2426,13 +2458,13 @@ function StockView({ user, role }) {
     <div className="data-section">
       {load && <TopLoadingBar />}
       <div className="section-header">
-        <h2><i className="fas fa-dolly"></i></h2>
+        <h2><i className="fas fa-dolly"></i> Stock In / Out</h2>
         <div className="header-actions">
           <RefreshBtn onClick={reload} />
-          {role === 'Admin' && <button className="btn btn-success" disabled={loading} onClick={() => setModalType('in')}><i className="fas fa-arrow-down"></i> <span className="btn-label">Stock In</span></button>}
-          {role === 'Admin' && <button className="btn btn-danger" disabled={loading} onClick={() => setModalType('out')}><i className="fas fa-arrow-up"></i> <span className="btn-label">Stock Out</span></button>}
-          {role === 'Admin' && <button className="btn btn-secondary" disabled={loading} onClick={() => setShowBulkIn(true)}><i className="fas fa-truck-ramp-box"></i> <span className="btn-label">Bulk Receive</span></button>}
-          {role === 'Admin' && <button className="btn btn-secondary" disabled={loading} onClick={() => setShowAdjust(true)}><i className="fas fa-scale-balanced"></i> <span className="btn-label">Stocktake</span></button>}
+          {can('stock_in_out', role, settings?.rolePermissions) && <button className="btn btn-success" disabled={loading} onClick={() => setModalType('in')}><i className="fas fa-arrow-down"></i> <span className="btn-label">Stock In</span></button>}
+          {can('stock_in_out', role, settings?.rolePermissions) && <button className="btn btn-danger" disabled={loading} onClick={() => setModalType('out')}><i className="fas fa-arrow-up"></i> <span className="btn-label">Stock Out</span></button>}
+          {can('stock_bulk_receive', role, settings?.rolePermissions) && <button className="btn btn-secondary" disabled={loading} onClick={() => setShowBulkIn(true)}><i className="fas fa-truck-ramp-box"></i> <span className="btn-label">Bulk Receive</span></button>}
+          {can('stock_stocktake', role, settings?.rolePermissions) && <button className="btn btn-secondary" disabled={loading} onClick={() => setShowAdjust(true)}><i className="fas fa-scale-balanced"></i> <span className="btn-label">Stocktake</span></button>}
         </div>
       </div>
       {loading && <TableSkeleton rows={8} columns={10} />}
@@ -2831,7 +2863,7 @@ function POSView({ user, role }) {
     <div className="data-section">
       {load && <TopLoadingBar />}
       <div className="section-header">
-        <h2><i className="fas fa-cash-register"></i></h2>
+        <h2><i className="fas fa-cash-register"></i> QR Sales / POS</h2>
         <div className="pos-scan-actions">
           <button className="btn btn-secondary" disabled={!catalogReady} onClick={() => setShowCamera(true)}><i className="fas fa-camera"></i> <span className="btn-label">Camera</span></button>
           <button className="btn btn-secondary" onClick={recallHeld}><i className="fas fa-clock-rotate-left"></i> <span className="btn-label">Held{held.length ? ` (${held.length})` : ''}</span></button>
@@ -3028,7 +3060,7 @@ function SalesHistoryView({ user, role }) {
 
   return (
     <div className="data-section">
-      <div className="section-header"><h2><i className="fas fa-receipt"></i></h2><div className="header-actions"><RefreshBtn onClick={reload} /></div></div>
+      <div className="section-header"><h2><i className="fas fa-receipt"></i> Sales History</h2><div className="header-actions"><RefreshBtn onClick={reload} /></div></div>
       {loading && <TableSkeleton rows={8} columns={10} />}
       <div style={{ display: loading ? 'none' : 'block' }}>
         <table id="salesTable" className="display" style={{ width: '100%' }}></table>
@@ -3151,7 +3183,7 @@ function LogsView() {
   const logs = useMemo(() => (data && data.success ? data.data : []), [data]);
   return (
     <div className="data-section">
-      <div className="section-header"><h2><i className="fas fa-history"></i></h2></div>
+      <div className="section-header"><h2><i className="fas fa-history"></i> Activity Logs</h2></div>
       {loading ? <TableSkeleton rows={6} columns={4} /> : (
         <div className="about-table-wrapper">
           <table className="about-roles-table">
@@ -3265,7 +3297,7 @@ function SuppliersView({ user, role }) {
   return (
     <div className="data-section">
       {load && <TopLoadingBar />}
-      <div className="section-header"><h2><i className="fas fa-truck-field"></i></h2><div className="header-actions"><RefreshBtn onClick={reload} /><button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add Supplier</span></button></div></div>
+      <div className="section-header"><h2><i className="fas fa-truck-field"></i> Suppliers</h2><div className="header-actions"><RefreshBtn onClick={reload} /><button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add Supplier</span></button></div></div>
       {loading && <TableSkeleton rows={8} columns={7} />}
       <div style={{ display: loading ? 'none' : 'block' }}><table id="suppliersTable" className="display" style={{ width: '100%' }}></table>{suppliers.length > 0 && <SummaryBar items={[{ label: 'Suppliers', value: suppliers.length }, { label: 'Total Payable', value: money(totalPayable) }]} />}</div>
       {viewSup && <SupplierHubModal supplier={viewSup} onClose={() => setViewSup(null)} />}
@@ -3375,7 +3407,7 @@ function ExpensesView({ user, role }) {
   return (
     <div className="data-section">
       {load && <TopLoadingBar />}
-      <div className="section-header"><h2><i className="fas fa-money-bill-trend-up"></i></h2><div className="header-actions"><RefreshBtn onClick={reload} />{role !== 'Viewer' && <button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add Expense</span></button>}</div></div>
+      <div className="section-header"><h2><i className="fas fa-money-bill-trend-up"></i> Expenses</h2><div className="header-actions"><RefreshBtn onClick={reload} />{role !== 'Viewer' && <button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add Expense</span></button>}</div></div>
       {!loading && (
         <FiltersPanel onClear={() => setFilters({ dateFrom: '', dateTo: '', category: '' })}>
           <div className="filter-group"><label><i className="fas fa-calendar-alt"></i> Date From</label><input type="date" className="filter-input" value={filters.dateFrom} onChange={(e) => setFilters(f => ({ ...f, dateFrom: e.target.value }))} /></div>
@@ -3600,7 +3632,7 @@ function PurchaseOrdersView({ user, role }) {
   return (
     <div className="data-section">
       {load && <TopLoadingBar />}
-      <div className="section-header"><h2><i className="fas fa-file-invoice-dollar"></i></h2><div className="header-actions"><RefreshBtn onClick={reload} /><button className="btn btn-success" disabled={loading} onClick={() => setShowModal(true)}><i className="fas fa-plus"></i> <span className="btn-label">New PO</span></button></div></div>
+      <div className="section-header"><h2><i className="fas fa-file-invoice-dollar"></i> Purchase Orders</h2><div className="header-actions"><RefreshBtn onClick={reload} /><button className="btn btn-success" disabled={loading} onClick={() => setShowModal(true)}><i className="fas fa-plus"></i> <span className="btn-label">New PO</span></button></div></div>
       {loading && <TableSkeleton rows={8} columns={8} />}
       <div style={{ display: loading ? 'none' : 'block' }}><table id="poTable" className="display" style={{ width: '100%' }}></table>{pos.length > 0 && <SummaryBar items={[{ label: 'POs', value: poSummary.count }, { label: 'Total Value', value: money(poSummary.total) }, { label: 'Open (unreceived)', value: money(poSummary.open) }]} />}</div>
       {showModal && <PurchaseOrderModal suppliers={suppliers} products={products} role={role} onClose={() => setShowModal(false)} onSave={handleSave} />}
@@ -3862,7 +3894,7 @@ function RecipesView({ user, role }) {
     <div className="data-section">
       {load && <TopLoadingBar />}
       <div className="section-header">
-        <h2><i className="fas fa-book-open"></i></h2>
+        <h2><i className="fas fa-book-open"></i> Recipes</h2>
         <div className="header-actions">
           <RefreshBtn onClick={reload} />
           {isAdmin && <button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">New Recipe</span></button>}
@@ -4008,7 +4040,7 @@ function UsersView({ user, role }) {
     <div className="data-section">
       {load && <TopLoadingBar />}
       <div className="section-header">
-        <h2><i className="fas fa-users-cog"></i></h2>
+        <h2><i className="fas fa-users-cog"></i> Users</h2>
         <div className="header-actions"><RefreshBtn onClick={reload} /><button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add User</span></button></div>
       </div>
       {loading && <TableSkeleton rows={5} columns={4} />}
@@ -4204,7 +4236,7 @@ function SettingsView({ user, role }) {
     <div className="data-section">
       {load && <TopLoadingBar />}
       <div className="section-header">
-        <h2><i className="fas fa-gear"></i></h2>
+        <h2><i className="fas fa-gear"></i> Settings</h2>
         <div className="header-actions">
           <button className="btn btn-primary" title="Save Settings" onClick={save} disabled={saving}>{saving ? <><i className="fas fa-spinner fa-spin"></i> <span className="btn-label">Saving...</span></> : <><i className="fas fa-save"></i> <span className="btn-label">Save Settings</span></>}</button>
         </div>
