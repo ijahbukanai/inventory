@@ -8,7 +8,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<title>Inventory Records Management</title>
+<title>Firebase Records Manager</title>
 <link rel="icon" href="https://www.bariklanaaqiqah.id//assets/images/favicon.png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -113,6 +113,8 @@ input, select, textarea { font-size: 16px !important; touch-action: manipulation
 .quick-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
 .header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .btn-label { white-space: nowrap; }
+.btn-link-sm { background: none; border: none; color: var(--color-primary); font-size: 12.5px; font-weight: 600; cursor: pointer; padding: 4px 0; text-align: left; }
+.btn-link-sm:hover { text-decoration: underline; }
 
 /* DataTable */
 table.dataTable { width: 100% !important; border-collapse: collapse; background: white; }
@@ -554,7 +556,7 @@ html.print-a4 { page: a4-receipt; }
 
 <script>
 // firebase init - RTDB only, no auth/apiKey needed for basic read/write
-firebase.initializeApp({ databaseURL: 'https://inventory-a99e5-default-rtdb.asia-southeast1.firebasedatabase.app' });
+firebase.initializeApp({ databaseURL: 'https://inventory-17966-default-rtdb.asia-southeast1.firebasedatabase.app' });
 window.db = firebase.database();
 
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function(c) { return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]; }); }
@@ -776,6 +778,52 @@ async function fbDeleteStockMovement(id, detail, user) {
     await db.ref('stock_movements/' + id).remove();
     await fbLogActivity('Delete Stock Entry', user, detail);
     return { success: true, message: 'Stock entry deleted' };
+  } catch (e) { return { success: false, message: e.message }; }
+}
+
+// --- Recipes (Bill of Materials): raw-material components -> a finished/produced product, at a defined batch yield ---
+async function fbGetRecipes() {
+  try {
+    const snap = await db.ref('recipes').once('value');
+    const val = snap.val() || {};
+    return { success: true, data: Object.entries(val).map(function(e) { return Object.assign({ id: e[0] }, e[1]); }) };
+  } catch (e) { return { success: false, message: e.message, data: [] }; }
+}
+async function fbSaveRecipe(id, data, user) {
+  try {
+    if (id) {
+      await db.ref('recipes/' + id).update(data);
+      await fbLogActivity('Update Recipe', user, data.name);
+      return { success: true, message: 'Recipe updated' };
+    }
+    const ref = await db.ref('recipes').push(Object.assign({}, data, { createdBy: user.email, createdAt: nowIso() }));
+    await fbLogActivity('Add Recipe', user, data.name);
+    return { success: true, message: 'Recipe added', id: ref.key };
+  } catch (e) { return { success: false, message: e.message }; }
+}
+async function fbDeleteRecipe(id, name, user) {
+  try {
+    await db.ref('recipes/' + id).remove();
+    await fbLogActivity('Delete Recipe', user, name);
+    return { success: true, message: 'Recipe deleted' };
+  } catch (e) { return { success: false, message: e.message }; }
+}
+// Produce N batches: Stock Out every component (qty x batches), then Stock In the produced item (batchYieldQty x batches).
+// Validates every component has enough stock first - all-or-nothing, no partial consumption.
+async function fbProduceBatch(recipe, batches, movements, user) {
+  try {
+    const n = Number(batches) || 1;
+    for (const it of (recipe.items || [])) {
+      const need = round2(Number(it.qty) * n);
+      const have = computeQtyOnHand(it.productId, movements);
+      if (have < need) return { success: false, message: `Not enough stock for ${it.name}: need ${need}, have ${have}` };
+    }
+    await Promise.all((recipe.items || []).map(function(it) {
+      return fbAddStockMovement({ productId: it.productId, type: 'out', qty: round2(Number(it.qty) * n), reason: 'Recipe Production', reference: recipe.name, notes: `Consumed for ${n} batch(es) of ${recipe.name}` }, it.name, user);
+    }));
+    await fbAddStockMovement({ productId: recipe.producesProductId, type: 'in', qty: round2(Number(recipe.batchYieldQty) * n), reason: 'Recipe Production', reference: recipe.name, notes: `Produced ${n} batch(es)` }, recipe.producesProductName, user);
+    await fbLogActivity('Produce Batch', user, `${n}x ${recipe.name} \u2192 ${round2(Number(recipe.batchYieldQty) * n)} ${recipe.batchYieldUnit || ''} ${recipe.producesProductName}`);
+    return { success: true, message: 'Batch produced \u2014 stock updated' };
   } catch (e) { return { success: false, message: e.message }; }
 }
 
@@ -1023,11 +1071,12 @@ const CATEGORY_OPTS = [
 ];
 const ACTIVE_OPTS = [{ value: '1', label: 'Active' }, { value: '0', label: 'Inactive' }];
 const LOW_STOCK_OPTS = [{ value: '1', label: 'Low Stock Only' }];
-const ROLE_OPTS = [{ value: 'Admin', label: 'Admin' }, { value: 'User', label: 'User' }];
+const ROLE_OPTS = [{ value: 'Admin', label: 'Admin' }, { value: 'User', label: 'User' }, { value: 'Viewer', label: 'Viewer' }];
 const STATUS_OPTS = [{ value: 'active', label: 'Active' }, { value: 'discontinued', label: 'Discontinued' }];
 const PRODUCT_STATUS_FILTER = [{ value: 'active', label: 'Active Only' }, { value: 'discontinued', label: 'Discontinued Only' }];
 const CUSTOMER_TYPE_OPTS = [{ value: 'Retail', label: 'Retail' }, { value: 'Wholesale', label: 'Wholesale' }, { value: 'Lead', label: 'Lead' }, { value: 'VIP', label: 'VIP' }];
 const EXPENSE_CATEGORY_OPTS = ['Rent', 'Utilities', 'Salaries', 'Supplies', 'Marketing', 'Transport', 'Maintenance', 'Fees & Taxes', 'Other'].map(c => ({ value: c, label: c }));
+const BATCH_UNIT_OPTS = [{ value: 'GRM', label: 'GRM (Gram)' }, { value: 'KG', label: 'KG (Kilogram)' }, { value: 'ML', label: 'ML (Mililiter)' }, { value: 'LTR', label: 'LTR (Liter)' }, { value: 'GAL', label: 'GAL (Galon)' }, { value: 'PCS', label: 'PCS (Pieces)' }];
 
 // restock target: explicit reorder qty > (max stock − on hand) > (reorder level × 2 − on hand); never below 0
 function suggestedReorder(p, qtyOnHand) {
@@ -1426,6 +1475,7 @@ function Navbar({ icon, title, userName, role, notifs = [], onLogout, setActiveM
 // --- Sidebar ---
 function Sidebar({ activeMenu, setActiveMenu, role, user, onLogout, collapsed, mobileOpen }) {
   const isAdmin = role === 'Admin';
+  const isViewer = role === 'Viewer';
   return (
     <div className={'sidebar' + (collapsed ? ' collapsed' : '') + (mobileOpen ? ' mobile-open' : '')}>
       <div className="sidebar-brand"><img src={LOGO_URL} alt="" className="sidebar-brand-logo" /><span className="sidebar-brand-name">Records Manager</span></div>
@@ -1434,14 +1484,15 @@ function Sidebar({ activeMenu, setActiveMenu, role, user, onLogout, collapsed, m
         <div className="sidebar-menu-title">Navigation</div>
         <ul className="sidebar-menu">
           {isAdmin && <li><button className={activeMenu === 'dashboard' ? 'active' : ''} onClick={() => setActiveMenu('dashboard')}><i className="fas fa-chart-line"></i><span>Dashboard</span></button></li>}
-          <li><button className={activeMenu === 'pos' ? 'active' : ''} onClick={() => setActiveMenu('pos')}><i className="fas fa-cash-register"></i><span>QR Sales</span></button></li>
+          {!isViewer && <li><button className={activeMenu === 'pos' ? 'active' : ''} onClick={() => setActiveMenu('pos')}><i className="fas fa-cash-register"></i><span>QR Sales</span></button></li>}
           <li><button className={activeMenu === 'products' ? 'active' : ''} onClick={() => setActiveMenu('products')}><i className="fas fa-boxes-stacked"></i><span>Products</span></button></li>
-          <li><button className={activeMenu === 'stock' ? 'active' : ''} onClick={() => setActiveMenu('stock')}><i className="fas fa-dolly"></i><span>Stock In/Out</span></button></li>
-          <li><button className={activeMenu === 'sales-history' ? 'active' : ''} onClick={() => setActiveMenu('sales-history')}><i className="fas fa-receipt"></i><span>Sales History</span></button></li>
-          <li><button className={activeMenu === 'records' ? 'active' : ''} onClick={() => setActiveMenu('records')}><i className="fas fa-address-book"></i><span>Customers</span></button></li>
+          {!isViewer && <li><button className={activeMenu === 'stock' ? 'active' : ''} onClick={() => setActiveMenu('stock')}><i className="fas fa-dolly"></i><span>Stock In/Out</span></button></li>}
+          {!isViewer && <li><button className={activeMenu === 'sales-history' ? 'active' : ''} onClick={() => setActiveMenu('sales-history')}><i className="fas fa-receipt"></i><span>Sales History</span></button></li>}
+          {!isViewer && <li><button className={activeMenu === 'records' ? 'active' : ''} onClick={() => setActiveMenu('records')}><i className="fas fa-address-book"></i><span>Customers</span></button></li>}
           {isAdmin && <li><button className={activeMenu === 'suppliers' ? 'active' : ''} onClick={() => setActiveMenu('suppliers')}><i className="fas fa-truck-field"></i><span>Suppliers</span></button></li>}
-          <li><button className={activeMenu === 'purchase-orders' ? 'active' : ''} onClick={() => setActiveMenu('purchase-orders')}><i className="fas fa-file-invoice-dollar"></i><span>Purchase Orders</span></button></li>
-          {isAdmin && <li><button className={activeMenu === 'expenses' ? 'active' : ''} onClick={() => setActiveMenu('expenses')}><i className="fas fa-money-bill-trend-up"></i><span>Expenses</span></button></li>}
+          {!isViewer && <li><button className={activeMenu === 'purchase-orders' ? 'active' : ''} onClick={() => setActiveMenu('purchase-orders')}><i className="fas fa-file-invoice-dollar"></i><span>Purchase Orders</span></button></li>}
+          {!isViewer && <li><button className={activeMenu === 'recipes' ? 'active' : ''} onClick={() => setActiveMenu('recipes')}><i className="fas fa-book-open"></i><span>Recipes</span></button></li>}
+          {(isAdmin || isViewer) && <li><button className={activeMenu === 'expenses' ? 'active' : ''} onClick={() => setActiveMenu('expenses')}><i className="fas fa-money-bill-trend-up"></i><span>Expenses</span></button></li>}
           {isAdmin && <li><button className={activeMenu === 'users' ? 'active' : ''} onClick={() => setActiveMenu('users')}><i className="fas fa-users-cog"></i><span>Users</span></button></li>}
           {isAdmin && <li><button className={activeMenu === 'settings' ? 'active' : ''} onClick={() => setActiveMenu('settings')}><i className="fas fa-gear"></i><span>Settings</span></button></li>}
           {isAdmin && <li><button className={activeMenu === 'logs' ? 'active' : ''} onClick={() => setActiveMenu('logs')}><i className="fas fa-history"></i><span>Activity Logs</span></button></li>}
@@ -1455,6 +1506,16 @@ function Sidebar({ activeMenu, setActiveMenu, role, user, onLogout, collapsed, m
 
 // --- Bottom Nav (mobile only, shown via CSS at <=768px) ---
 function BottomNav({ activeMenu, setActiveMenu, role, onMenuToggle, onQuickScan }) {
+  if (role === 'Viewer') {
+    return (
+      <div className="bottom-nav">
+        <button onClick={onMenuToggle}><i className="fas fa-bars"></i><span>Menu</span></button>
+        <button className={activeMenu === 'products' ? 'active' : ''} onClick={() => setActiveMenu('products')}><i className="fas fa-boxes-stacked"></i><span>Products</span></button>
+        <button className={activeMenu === 'expenses' ? 'active' : ''} onClick={() => setActiveMenu('expenses')}><i className="fas fa-money-bill-trend-up"></i><span>Expenses</span></button>
+        <button className={activeMenu === 'about' ? 'active' : ''} onClick={() => setActiveMenu('about')}><i className="fas fa-circle-info"></i><span>About</span></button>
+      </div>
+    );
+  }
   return (
     <div className="bottom-nav">
       <button onClick={onMenuToggle}><i className="fas fa-bars"></i><span>Menu</span></button>
@@ -1489,7 +1550,7 @@ function LoginPage({ onLogin }) {
     <div className="login-container">
       <div className="login-box">
         <img src={LOGO_URL} alt="Logo" className="login-logo" />
-        <h2>Inventory Records Management</h2>
+        <h2>Firebase Records Manager</h2>
         <form onSubmit={handleSubmit}>
           <div className="form-group"><label>Email</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required /></div>
           <div className="form-group"><label>Password</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></div>
@@ -1498,7 +1559,7 @@ function LoginPage({ onLogin }) {
           </button>
           {error && <div className="error">{error}</div>}
         </form>
-        <p style={{marginTop: '20px', fontSize: '12px', color: '#999'}}>PT BARIKLANA CATERING AQIQAH</p>
+        <p style={{marginTop: '20px', fontSize: '12px', color: '#999'}}>Demo: admin@demo.com / admin123 (Admin) &nbsp;•&nbsp; user1@demo.com / user123 (User)</p>
       </div>
     </div>
   );
@@ -1695,7 +1756,7 @@ function RecordsView({ user, role }) {
     <div className="data-section">
       {load && <TopLoadingBar />}
       <div className="section-header">
-        <h2><i className="fas fa-address-book"></i></h2>
+        <h2><i className="fas fa-address-book"></i> Customers</h2>
         <div className="header-actions"><RefreshBtn onClick={reload} /><button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add Customer</span></button></div>
       </div>
       {!loading && (
@@ -1949,7 +2010,7 @@ function ProductsView({ user, role }) {
           { data: 'qtyOnHand', title: 'Qty On Hand', render: (d, t, row) => t === 'display' ? (Number(d) <= Number(row.reorderLevel || 0) ? '<span class="status-badge status-inactive">' + d + '</span>' : d) : d },
           { data: 'reorderLevel', title: 'Reorder Level' },
           { data: 'status', title: 'Status', render: (d, t) => t === 'display' ? (d === 'discontinued' ? '<span class="status-badge status-inactive">Discontinued</span>' : '<span class="status-badge status-active">Active</span>') : (d || 'active') },
-          { data: null, title: 'Actions', orderable: false, render: () => `<button class="action-icon" data-action="view" title="View"><i class="fas fa-eye"></i></button><button class="action-icon edit-icon" data-action="edit" title="Edit"><i class="fas fa-edit"></i></button><button class="action-icon qr-icon" data-action="qr" title="QR"><i class="fas fa-qrcode"></i></button>` + (role === 'Admin' ? `<button class="action-icon delete-icon" data-action="delete" title="Delete"><i class="fas fa-trash"></i></button>` : '') }
+          { data: null, title: 'Actions', orderable: false, render: () => `<button class="action-icon" data-action="view" title="View"><i class="fas fa-eye"></i></button>` + (role !== 'Viewer' ? `<button class="action-icon edit-icon" data-action="edit" title="Edit"><i class="fas fa-edit"></i></button>` : '') + `<button class="action-icon qr-icon" data-action="qr" title="QR"><i class="fas fa-qrcode"></i></button>` + (role === 'Admin' ? `<button class="action-icon delete-icon" data-action="delete" title="Delete"><i class="fas fa-trash"></i></button>` : '') }
         ],
         pageLength: 10,
         lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
@@ -2045,12 +2106,12 @@ function ProductsView({ user, role }) {
     <div className="data-section">
       {load && <TopLoadingBar />}
       <div className="section-header">
-        <h2><i className="fas fa-boxes-stacked"></i></h2>
+        <h2><i className="fas fa-boxes-stacked"></i> Products</h2>
         <div className="header-actions">
           <RefreshBtn onClick={reload} />
-          <button className="btn btn-secondary" onClick={() => setShowReorderReport(true)} disabled={reorderRows.length === 0}><i className="fas fa-triangle-exclamation"></i> <span className="btn-label">Print Reorder Report</span></button>
-          <button className="btn btn-secondary" onClick={handlePrintLabels} disabled={products.length === 0}><i className="fas fa-print"></i> <span className="btn-label">{isFiltered ? 'Print Filtered Labels' : 'Print All QR Labels'}</span></button>
-          <button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add Product</span></button>
+          {role !== 'Viewer' && <button className="btn btn-secondary" onClick={() => setShowReorderReport(true)} disabled={reorderRows.length === 0}><i className="fas fa-triangle-exclamation"></i> <span className="btn-label">Print Reorder Report</span></button>}
+          {role !== 'Viewer' && <button className="btn btn-secondary" onClick={handlePrintLabels} disabled={products.length === 0}><i className="fas fa-print"></i> <span className="btn-label">{isFiltered ? 'Print Filtered Labels' : 'Print All QR Labels'}</span></button>}
+          {role !== 'Viewer' && <button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add Product</span></button>}
         </div>
       </div>
       {!loading && (
@@ -2397,13 +2458,13 @@ function StockView({ user, role }) {
     <div className="data-section">
       {load && <TopLoadingBar />}
       <div className="section-header">
-        <h2><i className="fas fa-dolly"></i></h2>
+        <h2><i className="fas fa-dolly"></i> Stock In / Out</h2>
         <div className="header-actions">
           <RefreshBtn onClick={reload} />
-          <button className="btn btn-success" disabled={loading} onClick={() => setModalType('in')}><i className="fas fa-arrow-down"></i> <span className="btn-label">Stock In</span></button>
-          <button className="btn btn-danger" disabled={loading} onClick={() => setModalType('out')}><i className="fas fa-arrow-up"></i> <span className="btn-label">Stock Out</span></button>
-          <button className="btn btn-secondary" disabled={loading} onClick={() => setShowBulkIn(true)}><i className="fas fa-truck-ramp-box"></i> <span className="btn-label">Bulk Receive</span></button>
-          <button className="btn btn-secondary" disabled={loading} onClick={() => setShowAdjust(true)}><i className="fas fa-scale-balanced"></i> <span className="btn-label">Stocktake</span></button>
+          {role === 'Admin' && <button className="btn btn-success" disabled={loading} onClick={() => setModalType('in')}><i className="fas fa-arrow-down"></i> <span className="btn-label">Stock In</span></button>}
+          {role === 'Admin' && <button className="btn btn-danger" disabled={loading} onClick={() => setModalType('out')}><i className="fas fa-arrow-up"></i> <span className="btn-label">Stock Out</span></button>}
+          {role === 'Admin' && <button className="btn btn-secondary" disabled={loading} onClick={() => setShowBulkIn(true)}><i className="fas fa-truck-ramp-box"></i> <span className="btn-label">Bulk Receive</span></button>}
+          {role === 'Admin' && <button className="btn btn-secondary" disabled={loading} onClick={() => setShowAdjust(true)}><i className="fas fa-scale-balanced"></i> <span className="btn-label">Stocktake</span></button>}
         </div>
       </div>
       {loading && <TableSkeleton rows={8} columns={10} />}
@@ -2501,7 +2562,7 @@ function ThermalSlip({ sale }) {
     <div className="thermal-slip-print">
       <div className="ts-header">
         <img src={CFG.logoUrl || LOGO_URL} alt="" className="ts-logo" />
-        <div className="ts-app-name">{CFG.business?.name || 'Inventory Records Management'}</div>
+        <div className="ts-app-name">{CFG.business?.name || 'Firebase Records Manager'}</div>
         {CFG.business?.address ? <div className="ts-sub">{CFG.business.address}</div> : null}
         {CFG.business?.phone ? <div className="ts-sub">{CFG.business.phone}</div> : null}
         {CFG.receiptHeader ? <div className="ts-sub">{CFG.receiptHeader}</div> : null}
@@ -2802,7 +2863,7 @@ function POSView({ user, role }) {
     <div className="data-section">
       {load && <TopLoadingBar />}
       <div className="section-header">
-        <h2><i className="fas fa-cash-register"></i></h2>
+        <h2><i className="fas fa-cash-register"></i> QR Sales / POS</h2>
         <div className="pos-scan-actions">
           <button className="btn btn-secondary" disabled={!catalogReady} onClick={() => setShowCamera(true)}><i className="fas fa-camera"></i> <span className="btn-label">Camera</span></button>
           <button className="btn btn-secondary" onClick={recallHeld}><i className="fas fa-clock-rotate-left"></i> <span className="btn-label">Held{held.length ? ` (${held.length})` : ''}</span></button>
@@ -2999,7 +3060,7 @@ function SalesHistoryView({ user, role }) {
 
   return (
     <div className="data-section">
-      <div className="section-header"><h2><i className="fas fa-receipt"></i></h2><div className="header-actions"><RefreshBtn onClick={reload} /></div></div>
+      <div className="section-header"><h2><i className="fas fa-receipt"></i> Sales History</h2><div className="header-actions"><RefreshBtn onClick={reload} /></div></div>
       {loading && <TableSkeleton rows={8} columns={10} />}
       <div style={{ display: loading ? 'none' : 'block' }}>
         <table id="salesTable" className="display" style={{ width: '100%' }}></table>
@@ -3122,7 +3183,7 @@ function LogsView() {
   const logs = useMemo(() => (data && data.success ? data.data : []), [data]);
   return (
     <div className="data-section">
-      <div className="section-header"><h2><i className="fas fa-history"></i></h2></div>
+      <div className="section-header"><h2><i className="fas fa-history"></i> Activity Logs</h2></div>
       {loading ? <TableSkeleton rows={6} columns={4} /> : (
         <div className="about-table-wrapper">
           <table className="about-roles-table">
@@ -3236,7 +3297,7 @@ function SuppliersView({ user, role }) {
   return (
     <div className="data-section">
       {load && <TopLoadingBar />}
-      <div className="section-header"><h2><i className="fas fa-truck-field"></i></h2><div className="header-actions"><RefreshBtn onClick={reload} /><button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add Supplier</span></button></div></div>
+      <div className="section-header"><h2><i className="fas fa-truck-field"></i> Suppliers</h2><div className="header-actions"><RefreshBtn onClick={reload} /><button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add Supplier</span></button></div></div>
       {loading && <TableSkeleton rows={8} columns={7} />}
       <div style={{ display: loading ? 'none' : 'block' }}><table id="suppliersTable" className="display" style={{ width: '100%' }}></table>{suppliers.length > 0 && <SummaryBar items={[{ label: 'Suppliers', value: suppliers.length }, { label: 'Total Payable', value: money(totalPayable) }]} />}</div>
       {viewSup && <SupplierHubModal supplier={viewSup} onClose={() => setViewSup(null)} />}
@@ -3315,7 +3376,7 @@ function ExpensesView({ user, role }) {
           { data: 'amount', title: 'Amount', render: (d, t) => t === 'display' ? money(d) : d },
           { data: 'paymentMethod', title: 'Paid Via', render: (d, t) => t === 'display' ? esc(d || '-') : d },
           { data: 'notes', title: 'Notes', render: (d, t) => t === 'display' ? esc(d || '-') : d },
-          { data: null, title: 'Actions', orderable: false, render: () => `<button class="action-icon edit-icon" data-action="edit"><i class="fas fa-edit"></i></button>` + (role === 'Admin' ? `<button class="action-icon delete-icon" data-action="delete"><i class="fas fa-trash"></i></button>` : '') }
+          { data: null, title: 'Actions', orderable: false, render: () => (role !== 'Viewer' ? `<button class="action-icon edit-icon" data-action="edit"><i class="fas fa-edit"></i></button>` : '') + (role === 'Admin' ? `<button class="action-icon delete-icon" data-action="delete"><i class="fas fa-trash"></i></button>` : '') }
         ],
         pageLength: 10, lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']], responsive: true, dom: 'Blfrtip',
         buttons: [{ extend: 'csv', text: '<i class="fas fa-file-csv"></i> CSV', exportOptions: { columns: ':not(:last-child)' } }, { extend: 'pdf', text: '<i class="fas fa-file-pdf"></i> PDF', exportOptions: { columns: ':not(:last-child)' } }, { extend: 'print', text: '<i class="fas fa-print"></i> Print', exportOptions: { columns: ':not(:last-child)' } }],
@@ -3346,7 +3407,7 @@ function ExpensesView({ user, role }) {
   return (
     <div className="data-section">
       {load && <TopLoadingBar />}
-      <div className="section-header"><h2><i className="fas fa-money-bill-trend-up"></i></h2><div className="header-actions"><RefreshBtn onClick={reload} /><button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add Expense</span></button></div></div>
+      <div className="section-header"><h2><i className="fas fa-money-bill-trend-up"></i> Expenses</h2><div className="header-actions"><RefreshBtn onClick={reload} />{role !== 'Viewer' && <button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add Expense</span></button>}</div></div>
       {!loading && (
         <FiltersPanel onClear={() => setFilters({ dateFrom: '', dateTo: '', category: '' })}>
           <div className="filter-group"><label><i className="fas fa-calendar-alt"></i> Date From</label><input type="date" className="filter-input" value={filters.dateFrom} onChange={(e) => setFilters(f => ({ ...f, dateFrom: e.target.value }))} /></div>
@@ -3448,9 +3509,9 @@ function PurchaseOrderModal({ suppliers, products, role, onClose, onSave }) {
 }
 
 // --- PO detail + receive ---
-function PoDetailModal({ po, onClose, onReceive }) {
+function PoDetailModal({ po, role, onClose, onReceive }) {
   if (!po) return null;
-  const receivable = po.status !== 'received' && po.status !== 'cancelled';
+  const receivable = role === 'Admin' && po.status !== 'received' && po.status !== 'cancelled';
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal modal-lg" onClick={(e) => e.stopPropagation()}>
@@ -3525,7 +3586,7 @@ function PurchaseOrdersView({ user, role }) {
           { data: 'total', title: 'Total', render: (d, t) => t === 'display' ? money(d) : d },
           { data: 'status', title: 'Status', render: (d, t) => t === 'display' ? statusBadge(d) : d },
           { data: 'expectedDate', title: 'Expected', render: (d, t) => t === 'display' ? esc(d || '-') : d },
-          { data: null, title: 'Actions', orderable: false, render: (d, t, row) => `<button class="action-icon edit-icon" data-action="view"><i class="fas fa-eye"></i></button>` + (row.status !== 'received' && row.status !== 'cancelled' ? `<button class="action-icon qr-icon" data-action="receive"><i class="fas fa-dolly"></i></button>` : '') + (role === 'Admin' ? `<button class="action-icon delete-icon" data-action="delete"><i class="fas fa-trash"></i></button>` : '') }
+          { data: null, title: 'Actions', orderable: false, render: (d, t, row) => `<button class="action-icon edit-icon" data-action="view"><i class="fas fa-eye"></i></button>` + (role === 'Admin' && row.status !== 'received' && row.status !== 'cancelled' ? `<button class="action-icon qr-icon" data-action="receive"><i class="fas fa-dolly"></i></button>` : '') + (role === 'Admin' ? `<button class="action-icon delete-icon" data-action="delete"><i class="fas fa-trash"></i></button>` : '') }
         ],
         pageLength: 10, lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']], responsive: true, dom: 'Blfrtip',
         buttons: [{ extend: 'csv', text: '<i class="fas fa-file-csv"></i> CSV', exportOptions: { columns: ':not(:last-child)' } }, { extend: 'pdf', text: '<i class="fas fa-file-pdf"></i> PDF', exportOptions: { columns: ':not(:last-child)' } }, { extend: 'print', text: '<i class="fas fa-print"></i> Print', exportOptions: { columns: ':not(:last-child)' } }],
@@ -3553,7 +3614,7 @@ function PurchaseOrdersView({ user, role }) {
   };
 
   const doReceive = async (po) => {
-    if (!po) return;
+    if (!po || role !== 'Admin') return;
     const res = await Swal.fire({ icon: 'question', title: 'Receive PO?', text: `Post ${(po.items || []).length} line(s) as Stock In and mark ${po.poNumber} received?`, showCancelButton: true, confirmButtonText: 'Receive', input: 'checkbox', inputValue: 1, inputPlaceholder: 'Also update product costs' });
     if (!res.isConfirmed) return;
     setViewPo(null); setLoad('Receiving stock...');
@@ -3571,11 +3632,277 @@ function PurchaseOrdersView({ user, role }) {
   return (
     <div className="data-section">
       {load && <TopLoadingBar />}
-      <div className="section-header"><h2><i className="fas fa-file-invoice-dollar"></i></h2><div className="header-actions"><RefreshBtn onClick={reload} /><button className="btn btn-success" disabled={loading} onClick={() => setShowModal(true)}><i className="fas fa-plus"></i> <span className="btn-label">New PO</span></button></div></div>
+      <div className="section-header"><h2><i className="fas fa-file-invoice-dollar"></i> Purchase Orders</h2><div className="header-actions"><RefreshBtn onClick={reload} /><button className="btn btn-success" disabled={loading} onClick={() => setShowModal(true)}><i className="fas fa-plus"></i> <span className="btn-label">New PO</span></button></div></div>
       {loading && <TableSkeleton rows={8} columns={8} />}
       <div style={{ display: loading ? 'none' : 'block' }}><table id="poTable" className="display" style={{ width: '100%' }}></table>{pos.length > 0 && <SummaryBar items={[{ label: 'POs', value: poSummary.count }, { label: 'Total Value', value: money(poSummary.total) }, { label: 'Open (unreceived)', value: money(poSummary.open) }]} />}</div>
       {showModal && <PurchaseOrderModal suppliers={suppliers} products={products} role={role} onClose={() => setShowModal(false)} onSave={handleSave} />}
-      {viewPo && <PoDetailModal po={viewPo} onClose={() => setViewPo(null)} onReceive={doReceive} />}
+      {viewPo && <PoDetailModal po={viewPo} role={role} onClose={() => setViewPo(null)} onReceive={doReceive} />}
+    </div>
+  );
+}
+
+// --- Recipe Modal (Add/Edit) - Admin only. Can pick an existing product to produce, or create a new one inline. ---
+function RecipeModal({ editItem, products, onClose, onSave }) {
+  const [producesMode, setProducesMode] = useState('existing'); // 'existing' | 'new'
+  const [producesProductId, setProducesProductId] = useState(editItem?.producesProductId || '');
+  const [newProductName, setNewProductName] = useState('');
+  const [name, setName] = useState(editItem?.name || '');
+  const [batchYieldQty, setBatchYieldQty] = useState(editItem?.batchYieldQty ?? '');
+  const [batchYieldUnit, setBatchYieldUnit] = useState(editItem?.batchYieldUnit || '');
+  const [portions, setPortions] = useState(editItem?.portionsPerBatch ?? 1);
+  const [notes, setNotes] = useState(editItem?.notes || '');
+  const [items, setItems] = useState(editItem?.items || []);
+  const [itemProductId, setItemProductId] = useState('');
+  const [itemQty, setItemQty] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const productOpts = useMemo(() => (products || []).map(p => ({ value: p.id, label: `${p.name} (${p.sku})` })), [products]);
+  const byId = useMemo(() => (products || []).reduce((m, p) => (m[p.id] = p, m), {}), [products]);
+
+  const addItem = () => {
+    if (!itemProductId) return Swal.fire({ icon: 'warning', title: 'Pick an item' });
+    const q = Number(itemQty);
+    if (!(q > 0)) return Swal.fire({ icon: 'warning', title: 'Invalid quantity' });
+    const p = byId[itemProductId];
+    if (!p) return;
+    setItems(prev => {
+      const ex = prev.find(l => l.productId === itemProductId);
+      if (ex) return prev.map(l => l.productId === itemProductId ? { ...l, qty: l.qty + q } : l);
+      return [...prev, { productId: itemProductId, name: p.name, sku: p.sku, unit: p.unit || '', qty: q }];
+    });
+    setItemProductId(''); setItemQty('');
+  };
+  const removeItem = (id) => setItems(prev => prev.filter(l => l.productId !== id));
+
+  const submit = async () => {
+    if (producesMode === 'existing' && !producesProductId) return Swal.fire({ icon: 'warning', title: 'Pick what this recipe produces' });
+    if (producesMode === 'new' && !newProductName.trim()) return Swal.fire({ icon: 'warning', title: 'Enter a name for the new product' });
+    if (!name.trim()) return Swal.fire({ icon: 'warning', title: 'Enter a recipe name' });
+    if (!(Number(batchYieldQty) > 0)) return Swal.fire({ icon: 'warning', title: 'Enter a valid batch yield' });
+    if (!batchYieldUnit) return Swal.fire({ icon: 'warning', title: 'Pick a batch yield unit' });
+    if (!items.length) return Swal.fire({ icon: 'warning', title: 'Add at least one ingredient' });
+    setSaving(true);
+    await onSave({
+      name: name.trim(), batchYieldQty: Number(batchYieldQty), batchYieldUnit, portionsPerBatch: Number(portions) || 1,
+      notes: notes.trim() || null, items,
+      producesProductId, // existing-product case; RecipesView creates the new product first when producesMode is 'new'
+      _newProduct: producesMode === 'new' ? { name: newProductName.trim(), unit: batchYieldUnit } : null
+    });
+    setSaving(false);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal modal-lg" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header"><h3><i className="fas fa-book-open"></i> {editItem ? 'Edit Recipe' : 'New Recipe'}</h3><button className="close-btn" onClick={onClose}><i className="fas fa-times"></i></button></div>
+        <div className="modal-body">
+          <div className="form-grid">
+            <div className="form-group">
+              <label><i className="fas fa-utensils"></i> Produces *</label>
+              {producesMode === 'existing'
+                ? <SearchableDropdown options={productOpts} value={producesProductId} onChange={setProducesProductId} placeholder="Finished item..." required={true} />
+                : <input type="text" placeholder="New product name..." value={newProductName} onChange={(e) => setNewProductName(e.target.value)} />}
+              {!editItem && <button type="button" className="btn-link-sm" onClick={() => setProducesMode(m => m === 'existing' ? 'new' : 'existing')}>{producesMode === 'existing' ? '+ Create a new product instead' : '\u2190 Use an existing product'}</button>}
+            </div>
+            <div className="form-group"><label>Recipe Name</label><input type="text" placeholder="Cilantro Rice 10 KG" value={name} onChange={(e) => setName(e.target.value)} /></div>
+          </div>
+          <div className="form-grid">
+            <div className="form-group">
+              <label>Batch Yield *</label>
+              <div className="pos-disc-row" style={{ gridTemplateColumns: '1fr 1fr' }}>
+                <input type="number" min="0" step="0.01" value={batchYieldQty} onChange={(e) => setBatchYieldQty(e.target.value)} />
+                <SearchableDropdown options={BATCH_UNIT_OPTS} value={batchYieldUnit} onChange={setBatchYieldUnit} placeholder="Select..." required={true} />
+              </div>
+            </div>
+            <div className="form-group"><label>Portions per batch</label><input type="number" min="1" step="1" value={portions} onChange={(e) => setPortions(e.target.value)} /></div>
+          </div>
+          <div className="form-group"><label>Notes</label><textarea rows="2" placeholder="method, holding time..." value={notes} onChange={(e) => setNotes(e.target.value)}></textarea></div>
+
+          <div className="pos-disc-row" style={{ gridTemplateColumns: '2fr 1fr auto', alignItems: 'end', marginTop: 12 }}>
+            <SearchableDropdown label="Add Item" icon="fas fa-plus" options={productOpts} value={itemProductId} onChange={setItemProductId} placeholder="Search & add item..." />
+            <div className="form-group"><label>Qty</label><input type="number" min="0" step="0.01" value={itemQty} onChange={(e) => setItemQty(e.target.value)} /></div>
+            <div className="form-group"><label>&nbsp;</label><button type="button" className="btn btn-secondary" onClick={addItem}><i className="fas fa-plus"></i> Add</button></div>
+          </div>
+          {items.length > 0 && (
+            <div className="about-table-wrapper" style={{ marginTop: 12 }}>
+              <table className="about-roles-table">
+                <thead><tr><th>Item</th><th>Qty</th><th>Unit</th><th></th></tr></thead>
+                <tbody>
+                  {items.map(l => (
+                    <tr key={l.productId}>
+                      <td>{l.name}<div className="cell-sub">{l.sku}</div></td><td>{l.qty}</td><td>{l.unit || '-'}</td>
+                      <td><button className="action-icon delete-icon" onClick={() => removeItem(l.productId)}><i className="fas fa-times"></i></button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <div className="form-actions">
+            <button type="button" className="btn btn-primary" disabled={saving} onClick={submit}><i className="fas fa-save"></i> Save Recipe</button>
+            <button type="button" className="btn btn-secondary" onClick={onClose}><i className="fas fa-times"></i> Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Recipe Detail + Produce Batch (Admin + User can produce; view-only ingredient list) ---
+function RecipeDetailModal({ recipe, movements, onClose, onProduce }) {
+  const [batches, setBatches] = useState(1);
+  const [producing, setProducing] = useState(false);
+  if (!recipe) return null;
+  const n = Number(batches) || 0;
+  const rows = (recipe.items || []).map(it => {
+    const need = round2(it.qty * n);
+    const have = computeQtyOnHand(it.productId, movements || []);
+    return { ...it, need, have, short: have < need };
+  });
+  const anyShort = rows.some(r => r.short);
+
+  const handleProduce = async () => {
+    if (!(n > 0)) return Swal.fire({ icon: 'warning', title: 'Enter how many batches to produce' });
+    setProducing(true);
+    await onProduce(recipe, n);
+    setProducing(false);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal modal-lg" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header"><h3><i className="fas fa-book-open"></i> {recipe.name}</h3><button className="close-btn" onClick={onClose}><i className="fas fa-times"></i></button></div>
+        <div className="modal-body">
+          <div className="ts-meta" style={{ marginBottom: 12 }}>
+            <div className="ts-meta-row"><span>Produces:</span><span>{recipe.producesProductName}</span></div>
+            <div className="ts-meta-row"><span>Batch Yield:</span><span>{recipe.batchYieldQty} {recipe.batchYieldUnit}</span></div>
+            <div className="ts-meta-row"><span>Portions/batch:</span><span>{recipe.portionsPerBatch || 1}</span></div>
+          </div>
+          {recipe.notes && <p style={{ color: '#666', marginBottom: 12 }}>{recipe.notes}</p>}
+          <div className="about-table-wrapper">
+            <table className="about-roles-table">
+              <thead><tr><th>Ingredient</th><th>Per Batch</th><th>Needed x{n || 0}</th><th>In Stock</th></tr></thead>
+              <tbody>
+                {rows.map(r => (
+                  <tr key={r.productId} className={r.short ? 'row-warn' : ''}>
+                    <td>{r.name}<div className="cell-sub">{r.sku}</div></td><td>{r.qty} {r.unit}</td><td>{r.need} {r.unit}</td>
+                    <td>{r.short ? <span className="status-badge status-inactive">{r.have} {r.unit}</span> : `${r.have} ${r.unit}`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="pos-disc-row" style={{ gridTemplateColumns: '1fr auto', alignItems: 'end', marginTop: 16 }}>
+            <div className="form-group"><label>Batches to produce</label><input type="number" min="1" step="1" value={batches} onChange={(e) => setBatches(e.target.value)} /></div>
+            <div className="form-group"><label>&nbsp;</label><button type="button" className="btn btn-success" disabled={producing || anyShort || !(n > 0)} onClick={handleProduce}><i className="fas fa-industry"></i> Produce Batch</button></div>
+          </div>
+          {anyShort && <p style={{ color: '#c0392b', marginTop: 8 }}><i className="fas fa-triangle-exclamation"></i> Not enough stock for one or more ingredients — reduce batches or restock first.</p>}
+          <div className="form-actions"><button type="button" className="btn btn-secondary" onClick={onClose}><i className="fas fa-times"></i> Close</button></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Recipes View ---
+function RecipesView({ user, role }) {
+  const isAdmin = role === 'Admin';
+  const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [viewRecipe, setViewRecipe] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [load, setLoad] = useState('');
+  const tableRef = useRef(null);
+  const { loading, data, err } = useFetch(() => Promise.all([fbGetRecipes(), fbGetProducts(), fbGetStockMovements()]), [reloadKey]);
+  const recipes = useMemo(() => (data && data[0] && data[0].success ? data[0].data : []), [data]);
+  const products = useMemo(() => (data && data[1] && data[1].success ? data[1].data : []), [data]);
+  const movements = useMemo(() => (data && data[2] && data[2].success ? data[2].data : []), [data]);
+  const byId = useMemo(() => recipes.reduce((m, r) => (m[r.id] = r, m), {}), [recipes]);
+  const tableData = useMemo(() => recipes.map(r => Object.assign({}, r, { itemCount: (r.items || []).length })), [recipes]);
+  const reload = () => setReloadKey(k => k + 1);
+
+  useEffect(() => { if (err || (data && data[0] && !data[0].success)) Swal.fire({ icon: 'error', title: 'Error', text: (data && data[0] && data[0].message) || 'Failed to load recipes' }); }, [err, data]);
+
+  useEffect(() => {
+    if (loading) return;
+    let table = tableRef.current;
+    if (table) { table.clear().rows.add(tableData).draw(false); }
+    else {
+      table = $('#recipeTable').DataTable({
+        data: tableData,
+        columnDefs: [{ targets: '_all', defaultContent: '' }],
+        columns: [
+          { data: 'name', title: 'Recipe', render: (d, t) => t === 'display' ? esc(d || '') : d },
+          { data: 'producesProductName', title: 'Produces', render: (d, t) => t === 'display' ? esc(d || '-') : d },
+          { data: 'batchYieldQty', title: 'Batch Yield', render: (d, t, row) => t === 'display' ? `${d || 0} ${esc(row.batchYieldUnit || '')}` : d },
+          { data: 'portionsPerBatch', title: 'Portions' },
+          { data: 'itemCount', title: 'Ingredients' },
+          { data: null, title: 'Actions', orderable: false, render: () => `<button class="action-icon edit-icon" data-action="view"><i class="fas fa-eye"></i></button>` + (isAdmin ? `<button class="action-icon edit-icon" data-action="edit"><i class="fas fa-pen"></i></button><button class="action-icon delete-icon" data-action="delete"><i class="fas fa-trash"></i></button>` : '') }
+        ],
+        pageLength: 10, lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']], responsive: true, dom: 'Blfrtip',
+        buttons: [{ extend: 'csv', text: '<i class="fas fa-file-csv"></i> CSV', exportOptions: { columns: ':not(:last-child)' } }, { extend: 'pdf', text: '<i class="fas fa-file-pdf"></i> PDF', exportOptions: { columns: ':not(:last-child)' } }, { extend: 'print', text: '<i class="fas fa-print"></i> Print', exportOptions: { columns: ':not(:last-child)' } }],
+        order: [[0, 'asc']]
+      });
+      tableRef.current = table;
+    }
+    $('#recipeTable').off('click', '.action-icon').on('click', '.action-icon', function () {
+      const id = table.row($(this).parents('tr')).data().id;
+      const action = $(this).data('action');
+      if (action === 'view') setViewRecipe(byId[id]);
+      else if (action === 'edit') { setEditingId(id); setShowModal(true); }
+      else handleDelete(byId[id]);
+    });
+  }, [loading, tableData, isAdmin]);
+
+  useEffect(() => () => { if (tableRef.current) { try { tableRef.current.destroy(); tableRef.current = null; } catch (e) {} } }, []);
+
+  const handleSave = async (recipe) => {
+    setLoad(editingId ? 'Updating recipe...' : 'Creating recipe...');
+    let producesProductId = recipe.producesProductId;
+    let producesProductName = (products.find(p => p.id === producesProductId) || {}).name;
+    if (recipe._newProduct) {
+      const pr = await fbAddProduct({ name: recipe._newProduct.name, unit: recipe._newProduct.unit, category: 'Finished Goods', price: 0, cost: 0, reorderLevel: 0, status: 'active' }, user);
+      if (!pr.success) { setLoad(''); return Swal.fire({ icon: 'error', title: 'Error', text: pr.message }); }
+      producesProductId = pr.id; producesProductName = recipe._newProduct.name;
+    }
+    const payload = { name: recipe.name, batchYieldQty: recipe.batchYieldQty, batchYieldUnit: recipe.batchYieldUnit, portionsPerBatch: recipe.portionsPerBatch, notes: recipe.notes, items: recipe.items, producesProductId, producesProductName };
+    const r = await fbSaveRecipe(editingId, payload, user);
+    setLoad('');
+    if (r.success) { setShowModal(false); setEditingId(null); Swal.fire({ icon: 'success', title: 'Success!', text: r.message, timer: 1800, showConfirmButton: false }); reload(); }
+    else Swal.fire({ icon: 'error', title: 'Error', text: r.message });
+  };
+
+  const handleDelete = async (recipe) => {
+    if (!recipe) return;
+    const res = await Swal.fire({ icon: 'warning', title: 'Delete recipe?', text: recipe.name, showCancelButton: true, confirmButtonText: 'Delete' });
+    if (!res.isConfirmed) return;
+    const r = await fbDeleteRecipe(recipe.id, recipe.name, user);
+    if (r.success) { Swal.fire({ icon: 'success', title: 'Deleted', timer: 1500, showConfirmButton: false }); reload(); }
+    else Swal.fire({ icon: 'error', title: 'Error', text: r.message });
+  };
+
+  const handleProduce = async (recipe, batches) => {
+    setLoad('Producing batch...');
+    const r = await fbProduceBatch(recipe, batches, movements, user);
+    setLoad('');
+    if (r.success) { setViewRecipe(null); Swal.fire({ icon: 'success', title: 'Produced!', text: r.message, timer: 1800, showConfirmButton: false }); reload(); }
+    else Swal.fire({ icon: 'error', title: 'Cannot produce', text: r.message });
+  };
+
+  return (
+    <div className="data-section">
+      {load && <TopLoadingBar />}
+      <div className="section-header">
+        <h2><i className="fas fa-book-open"></i> Recipes</h2>
+        <div className="header-actions">
+          <RefreshBtn onClick={reload} />
+          {isAdmin && <button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">New Recipe</span></button>}
+        </div>
+      </div>
+      <table id="recipeTable" className="display" style={{ width: '100%' }}></table>
+      {showModal && <RecipeModal editItem={editingId ? byId[editingId] : null} products={products} onClose={() => { setShowModal(false); setEditingId(null); }} onSave={handleSave} />}
+      {viewRecipe && <RecipeDetailModal recipe={viewRecipe} movements={movements} onClose={() => setViewRecipe(null)} onProduce={handleProduce} />}
     </div>
   );
 }
@@ -3713,7 +4040,7 @@ function UsersView({ user, role }) {
     <div className="data-section">
       {load && <TopLoadingBar />}
       <div className="section-header">
-        <h2><i className="fas fa-users-cog"></i></h2>
+        <h2><i className="fas fa-users-cog"></i> Users</h2>
         <div className="header-actions"><RefreshBtn onClick={reload} /><button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add User</span></button></div>
       </div>
       {loading && <TableSkeleton rows={5} columns={4} />}
@@ -3733,7 +4060,7 @@ function AboutView() {
       <div className="about-header">
         <div className="about-logo"><img src={LOGO_URL} alt="Developer Logo" /></div>
         <div className="about-title">
-          <h1>Inventory Records Management</h1>
+          <h1>Firebase Records Manager</h1>
           <p className="about-dev">Developed by <strong>Dwi Prasetyo</strong> (Lokasite)</p>
         </div>
       </div>
@@ -3910,7 +4237,7 @@ function SettingsView({ user, role }) {
     <div className="data-section">
       {load && <TopLoadingBar />}
       <div className="section-header">
-        <h2><i className="fas fa-gear"></i></h2>
+        <h2><i className="fas fa-gear"></i> Settings</h2>
         <div className="header-actions">
           <button className="btn btn-primary" title="Save Settings" onClick={save} disabled={saving}>{saving ? <><i className="fas fa-spinner fa-spin"></i> <span className="btn-label">Saving...</span></> : <><i className="fas fa-save"></i> <span className="btn-label">Save Settings</span></>}</button>
         </div>
@@ -3970,6 +4297,7 @@ function MainContent({ activeMenu, user, role, setActiveMenu }) {
     case 'records': return <RecordsView user={user} role={role} />;
     case 'suppliers': return <SuppliersView user={user} role={role} />;
     case 'purchase-orders': return <PurchaseOrdersView user={user} role={role} />;
+    case 'recipes': return <RecipesView user={user} role={role} />;
     case 'expenses': return <ExpensesView user={user} role={role} />;
     case 'users': return <UsersView user={user} role={role} />;
     case 'settings': return <SettingsView user={user} role={role} />;
@@ -3980,7 +4308,7 @@ function MainContent({ activeMenu, user, role, setActiveMenu }) {
 }
 
 function Dashboard({ user, role, onLogout }) {
-  const [activeMenu, setActiveMenu] = useState(role === 'Admin' ? 'dashboard' : 'records');
+  const [activeMenu, setActiveMenu] = useState(role === 'Admin' ? 'dashboard' : role === 'Viewer' ? 'products' : 'records');
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('sb_collapsed') === '1');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const toggleSidebar = () => {
@@ -3988,6 +4316,7 @@ function Dashboard({ user, role, onLogout }) {
     setMobileSidebarOpen(o => !o);
   };
   useEffect(() => { setMobileSidebarOpen(false); }, [activeMenu]); // close the mobile drawer whenever the user navigates
+  useEffect(() => { if (role === 'Viewer' && !['products', 'expenses', 'about'].includes(activeMenu)) setActiveMenu('products'); }, [role, activeMenu]);
   const [quickScanOpen, setQuickScanOpen] = useState(false);
   const { data: logsData } = useFetch(() => fbGetLogs(), [activeMenu]);
   const notifs = useMemo(() => (logsData && logsData.success ? logsData.data.slice(0, 5).map(l => ({ text: `${l.action}: ${l.detail}`, icon: 'fa-bell' })) : []), [logsData]);
@@ -4000,8 +4329,8 @@ function Dashboard({ user, role, onLogout }) {
   useEffect(() => { if (settings && Object.keys(settings).length) applySettings(settings); }, [settings]);
   const refreshConfig = useCallback(() => setCfgKey(k => k + 1), []);
 
-  const titles = { dashboard: 'Dashboard', pos: 'QR Sales', products: 'Products', stock: 'Stock In/Out', 'sales-history': 'Sales History', records: 'Customers', suppliers: 'Suppliers', 'purchase-orders': 'Purchase Orders', expenses: 'Expenses', users: 'Users', settings: 'Settings', logs: 'Activity Logs', about: 'About App' };
-  const icons  = { dashboard: 'fa-chart-line', pos: 'fa-cash-register', products: 'fa-boxes-stacked', stock: 'fa-dolly', 'sales-history': 'fa-receipt', records: 'fa-address-book', suppliers: 'fa-truck-field', 'purchase-orders': 'fa-file-invoice-dollar', expenses: 'fa-money-bill-trend-up', users: 'fa-users-cog', settings: 'fa-gear', logs: 'fa-history', about: 'fa-info-circle' };
+  const titles = { dashboard: 'Dashboard', pos: 'QR Sales', products: 'Products', stock: 'Stock In/Out', 'sales-history': 'Sales History', records: 'Customers', suppliers: 'Suppliers', 'purchase-orders': 'Purchase Orders', recipes: 'Recipes', expenses: 'Expenses', users: 'Users', settings: 'Settings', logs: 'Activity Logs', about: 'About App' };
+  const icons  = { dashboard: 'fa-chart-line', pos: 'fa-cash-register', products: 'fa-boxes-stacked', stock: 'fa-dolly', 'sales-history': 'fa-receipt', records: 'fa-address-book', suppliers: 'fa-truck-field', 'purchase-orders': 'fa-file-invoice-dollar', recipes: 'fa-book-open', expenses: 'fa-money-bill-trend-up', users: 'fa-users-cog', settings: 'fa-gear', logs: 'fa-history', about: 'fa-info-circle' };
   return (
     <ConfigContext.Provider value={{ settings, categories, refreshConfig }}>
       <div className="app-container">
