@@ -1664,7 +1664,7 @@ function RecordsView({ user, role }) {
           { data: 'amount', title: 'Balance', render: (d, t) => t === 'display' ? money(d) : d },
           { data: 'active', title: 'Active', render: (d, t, row) => t === 'display' ? `<input type="checkbox" ${d ? 'checked' : ''} class="toggle" onchange="toggleActive('${row.id}', this.checked ? 1 : 0)">` : d },
           { data: 'createdAt', title: 'Created', render: (d, t) => t === 'display' ? formatDateForDisplay(d) : d },
-          { data: null, title: 'Actions', orderable: false, render: () => `<button class="action-icon" data-action="view" title="View"><i class="fas fa-eye"></i></button><button class="action-icon edit-icon" data-action="edit" title="Edit"><i class="fas fa-edit"></i></button>` + (role === 'Admin' ? `<button class="action-icon delete-icon" data-action="delete" title="Delete"><i class="fas fa-trash"></i></button>` : '') }
+          { data: null, title: 'Actions', orderable: false, render: (d, t, row) => `<button class="action-icon" data-id="${row.id}" data-action="view" title="View"><i class="fas fa-eye"></i></button><button class="action-icon edit-icon" data-id="${row.id}" data-action="edit" title="Edit"><i class="fas fa-edit"></i></button>` + (role === 'Admin' ? `<button class="action-icon delete-icon" data-id="${row.id}" data-action="delete" title="Delete"><i class="fas fa-trash"></i></button>` : '') }
         ],
         pageLength: 10,
         lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
@@ -1680,7 +1680,7 @@ function RecordsView({ user, role }) {
       tableInstanceRef.current = table;
     }
     $('#recordsTable').off('click', '.action-icon').on('click', '.action-icon', function () {
-      const id = table.row($(this).parents('tr')).data().id;
+      const id = $(this).data('id'); // read straight off the button - avoids DataTables Responsive collapsing rows into a child <tr> on mobile, which broke table.row(tr).data()
       const act = $(this).data('action');
       if (act === 'view') setViewCust(byId[id]);
       else if (act === 'edit') openEdit(id);
@@ -2009,7 +2009,7 @@ function ProductsView({ user, role }) {
           { data: 'qtyOnHand', title: 'Qty On Hand', render: (d, t, row) => t === 'display' ? (Number(d) <= Number(row.reorderLevel || 0) ? '<span class="status-badge status-inactive">' + d + '</span>' : d) : d },
           { data: 'reorderLevel', title: 'Reorder Level' },
           { data: 'status', title: 'Status', render: (d, t) => t === 'display' ? (d === 'discontinued' ? '<span class="status-badge status-inactive">Discontinued</span>' : '<span class="status-badge status-active">Active</span>') : (d || 'active') },
-          { data: null, title: 'Actions', orderable: false, render: () => `<button class="action-icon" data-action="view" title="View"><i class="fas fa-eye"></i></button>` + (can('products_add', role, settings?.rolePermissions) ? `<button class="action-icon edit-icon" data-action="edit" title="Edit"><i class="fas fa-edit"></i></button>` : '') + `<button class="action-icon qr-icon" data-action="qr" title="QR"><i class="fas fa-qrcode"></i></button>` + (role === 'Admin' ? `<button class="action-icon delete-icon" data-action="delete" title="Delete"><i class="fas fa-trash"></i></button>` : '') }
+          { data: null, title: 'Actions', orderable: false, render: (d, t, row) => `<button class="action-icon" data-id="${row.id}" data-action="view" title="View"><i class="fas fa-eye"></i></button>` + (can('products_add', role, settings?.rolePermissions) ? `<button class="action-icon edit-icon" data-id="${row.id}" data-action="edit" title="Edit"><i class="fas fa-edit"></i></button>` : '') + `<button class="action-icon qr-icon" data-id="${row.id}" data-action="qr" title="QR"><i class="fas fa-qrcode"></i></button>` + (role === 'Admin' ? `<button class="action-icon delete-icon" data-id="${row.id}" data-action="delete" title="Delete"><i class="fas fa-trash"></i></button>` : '') }
         ],
         pageLength: 10,
         lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
@@ -2025,7 +2025,7 @@ function ProductsView({ user, role }) {
       tableInstanceRef.current = table;
     }
     $('#productsTable').off('click', '.action-icon').on('click', '.action-icon', function () {
-      const id = table.row($(this).parents('tr')).data().id;
+      const id = $(this).data('id'); // read straight off the button - avoids DataTables Responsive collapsing rows into a child <tr> on mobile, which broke table.row(tr).data()
       const action = $(this).data('action');
       if (action === 'view') setViewProd(byId[id]);
       else if (action === 'edit') openEdit(id);
@@ -2389,7 +2389,7 @@ function StockView({ user, role }) {
           { data: 'balance', title: 'Balance', render: (d, t) => t === 'display' ? `<strong>${Number(d).toLocaleString('id-ID')}</strong>` : d },
           { data: 'performedBy', title: 'Performed By', render: (d, t) => t === 'display' ? esc(d || '') : d },
           { data: 'createdAt', title: 'When', render: (d, t) => t === 'display' ? formatDateForDisplay(d) : d },
-          { data: null, title: 'Actions', orderable: false, render: () => role === 'Admin' ? `<button class="action-icon delete-icon" data-action="delete"><i class="fas fa-trash"></i></button>` : '' }
+          { data: null, title: 'Actions', orderable: false, render: (d, t, row) => role === 'Admin' ? `<button class="action-icon delete-icon" data-id="${row.id}" data-action="delete"><i class="fas fa-trash"></i></button>` : '' }
         ],
         pageLength: 10,
         lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
@@ -2405,7 +2405,7 @@ function StockView({ user, role }) {
       tableInstanceRef.current = table;
     }
     $('#stockTable').off('click', '.action-icon').on('click', '.action-icon', function () {
-      const id = table.row($(this).parents('tr')).data().id;
+      const id = $(this).data('id'); // read straight off the button - avoids DataTables Responsive collapsing rows into a child <tr> on mobile, which broke table.row(tr).data()
       if ($(this).data('action') === 'delete') handleDelete(byId[id]);
     });
   }, [loading, tableData, role]);
@@ -3031,7 +3031,7 @@ function SalesHistoryView({ user, role }) {
           { data: 'paymentMethod', title: 'Payment', render: (d, t) => t === 'display' ? (d ? '<span class="type-chip">' + esc(d) + '</span>' : '-') : (d || '') },
           { data: 'profit', title: 'Profit', render: (d, t) => t === 'display' ? `<span style="color:${Number(d) >= 0 ? '#155724' : '#721c24'};font-weight:600">${money(d)}</span>` : d },
           { data: 'returnedTotal', title: 'Returned', render: (d, t) => t === 'display' ? (d > 0 ? '<span class="status-badge status-inactive">' + money(d) + '</span>' : '-') : d },
-          { data: null, title: 'Actions', orderable: false, render: () => `<button class="action-icon edit-icon" data-action="view"><i class="fas fa-receipt"></i></button>` + (role === 'Admin' ? `<button class="action-icon qr-icon" data-action="return"><i class="fas fa-rotate-left"></i></button>` : '') }
+          { data: null, title: 'Actions', orderable: false, render: (d, t, row) => `<button class="action-icon edit-icon" data-id="${row.id}" data-action="view"><i class="fas fa-receipt"></i></button>` + (role === 'Admin' ? `<button class="action-icon qr-icon" data-id="${row.id}" data-action="return"><i class="fas fa-rotate-left"></i></button>` : '') }
         ],
         pageLength: 10,
         lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
@@ -3047,7 +3047,7 @@ function SalesHistoryView({ user, role }) {
       tableInstanceRef.current = table;
     }
     $('#salesTable').off('click', '.action-icon').on('click', '.action-icon', function () {
-      const id = table.row($(this).parents('tr')).data().id;
+      const id = $(this).data('id'); // read straight off the button - avoids DataTables Responsive collapsing rows into a child <tr> on mobile, which broke table.row(tr).data()
       const action = $(this).data('action');
       if (action === 'view') setViewSale(byId[id]);
       else if (action === 'return') setReturnSaleId(id);
@@ -3263,7 +3263,7 @@ function SuppliersView({ user, role }) {
           { data: 'email', title: 'Email', render: (d, t) => t === 'display' ? esc(d || '-') : d },
           { data: 'terms', title: 'Terms', render: (d, t) => t === 'display' ? esc(d || '-') : d },
           { data: 'openingBalance', title: 'Payable', render: (d, t) => t === 'display' ? money(d) : d },
-          { data: null, title: 'Actions', orderable: false, render: () => `<button class="action-icon" data-action="view" title="View"><i class="fas fa-eye"></i></button><button class="action-icon edit-icon" data-action="edit" title="Edit"><i class="fas fa-edit"></i></button>` + (role === 'Admin' ? `<button class="action-icon delete-icon" data-action="delete" title="Delete"><i class="fas fa-trash"></i></button>` : '') }
+          { data: null, title: 'Actions', orderable: false, render: (d, t, row) => `<button class="action-icon" data-id="${row.id}" data-action="view" title="View"><i class="fas fa-eye"></i></button><button class="action-icon edit-icon" data-id="${row.id}" data-action="edit" title="Edit"><i class="fas fa-edit"></i></button>` + (role === 'Admin' ? `<button class="action-icon delete-icon" data-id="${row.id}" data-action="delete" title="Delete"><i class="fas fa-trash"></i></button>` : '') }
         ],
         pageLength: 10, lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']], responsive: true, dom: 'Blfrtip',
         buttons: [{ extend: 'csv', text: '<i class="fas fa-file-csv"></i> CSV', exportOptions: { columns: ':not(:last-child)' } }, { extend: 'pdf', text: '<i class="fas fa-file-pdf"></i> PDF', exportOptions: { columns: ':not(:last-child)' } }, { extend: 'print', text: '<i class="fas fa-print"></i> Print', exportOptions: { columns: ':not(:last-child)' } }],
@@ -3272,7 +3272,7 @@ function SuppliersView({ user, role }) {
       tableRef.current = table;
     }
     $('#suppliersTable').off('click', '.action-icon').on('click', '.action-icon', function () {
-      const id = table.row($(this).parents('tr')).data().id;
+      const id = $(this).data('id'); // read straight off the button - avoids DataTables Responsive collapsing rows into a child <tr> on mobile, which broke table.row(tr).data()
       const act = $(this).data('action');
       if (act === 'view') setViewSup(byId[id]);
       else if (act === 'edit') { setEditingId(id); setShowModal(true); }
@@ -3377,7 +3377,7 @@ function ExpensesView({ user, role }) {
           { data: 'amount', title: 'Amount', render: (d, t) => t === 'display' ? money(d) : d },
           { data: 'paymentMethod', title: 'Paid Via', render: (d, t) => t === 'display' ? esc(d || '-') : d },
           { data: 'notes', title: 'Notes', render: (d, t) => t === 'display' ? esc(d || '-') : d },
-          { data: null, title: 'Actions', orderable: false, render: () => (can('expenses_add', role, settings?.rolePermissions) ? `<button class="action-icon edit-icon" data-action="edit"><i class="fas fa-edit"></i></button>` : '') + (role === 'Admin' ? `<button class="action-icon delete-icon" data-action="delete"><i class="fas fa-trash"></i></button>` : '') }
+          { data: null, title: 'Actions', orderable: false, render: (d, t, row) => (can('expenses_add', role, settings?.rolePermissions) ? `<button class="action-icon edit-icon" data-id="${row.id}" data-action="edit"><i class="fas fa-edit"></i></button>` : '') + (role === 'Admin' ? `<button class="action-icon delete-icon" data-id="${row.id}" data-action="delete"><i class="fas fa-trash"></i></button>` : '') }
         ],
         pageLength: 10, lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']], responsive: true, dom: 'Blfrtip',
         buttons: [{ extend: 'csv', text: '<i class="fas fa-file-csv"></i> CSV', exportOptions: { columns: ':not(:last-child)' } }, { extend: 'pdf', text: '<i class="fas fa-file-pdf"></i> PDF', exportOptions: { columns: ':not(:last-child)' } }, { extend: 'print', text: '<i class="fas fa-print"></i> Print', exportOptions: { columns: ':not(:last-child)' } }],
@@ -3386,7 +3386,7 @@ function ExpensesView({ user, role }) {
       tableRef.current = table;
     }
     $('#expensesTable').off('click', '.action-icon').on('click', '.action-icon', function () {
-      const id = table.row($(this).parents('tr')).data().id;
+      const id = $(this).data('id'); // read straight off the button - avoids DataTables Responsive collapsing rows into a child <tr> on mobile, which broke table.row(tr).data()
       $(this).data('action') === 'edit' ? (setEditingId(id), setShowModal(true)) : handleDelete(byId[id]);
     });
   }, [loading, filtered, role]);
@@ -3590,7 +3590,7 @@ function PurchaseOrdersView({ user, role }) {
           { data: 'total', title: 'Total', render: (d, t) => t === 'display' ? money(d) : d },
           { data: 'status', title: 'Status', render: (d, t) => t === 'display' ? statusBadge(d) : d },
           { data: 'expectedDate', title: 'Expected', render: (d, t) => t === 'display' ? esc(d || '-') : d },
-          { data: null, title: 'Actions', orderable: false, render: (d, t, row) => `<button class="action-icon edit-icon" data-action="view"><i class="fas fa-eye"></i></button>` + (can('po_receive', role, settings?.rolePermissions) && row.status !== 'received' && row.status !== 'cancelled' ? `<button class="action-icon qr-icon" data-action="receive"><i class="fas fa-dolly"></i></button>` : '') + (role === 'Admin' ? `<button class="action-icon delete-icon" data-action="delete"><i class="fas fa-trash"></i></button>` : '') }
+          { data: null, title: 'Actions', orderable: false, render: (d, t, row) => `<button class="action-icon edit-icon" data-id="${row.id}" data-action="view"><i class="fas fa-eye"></i></button>` + (can('po_receive', role, settings?.rolePermissions) && row.status !== 'received' && row.status !== 'cancelled' ? `<button class="action-icon qr-icon" data-id="${row.id}" data-action="receive"><i class="fas fa-dolly"></i></button>` : '') + (role === 'Admin' ? `<button class="action-icon delete-icon" data-id="${row.id}" data-action="delete"><i class="fas fa-trash"></i></button>` : '') }
         ],
         pageLength: 10, lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']], responsive: true, dom: 'Blfrtip',
         buttons: [{ extend: 'csv', text: '<i class="fas fa-file-csv"></i> CSV', exportOptions: { columns: ':not(:last-child)' } }, { extend: 'pdf', text: '<i class="fas fa-file-pdf"></i> PDF', exportOptions: { columns: ':not(:last-child)' } }, { extend: 'print', text: '<i class="fas fa-print"></i> Print', exportOptions: { columns: ':not(:last-child)' } }],
@@ -3599,7 +3599,7 @@ function PurchaseOrdersView({ user, role }) {
       tableRef.current = table;
     }
     $('#poTable').off('click', '.action-icon').on('click', '.action-icon', function () {
-      const id = table.row($(this).parents('tr')).data().id;
+      const id = $(this).data('id'); // read straight off the button - avoids DataTables Responsive collapsing rows into a child <tr> on mobile, which broke table.row(tr).data()
       const action = $(this).data('action');
       if (action === 'view') setViewPo(byId[id]);
       else if (action === 'receive') doReceive(byId[id]);
@@ -3844,7 +3844,7 @@ function RecipesView({ user, role }) {
           { data: 'batchYieldQty', title: 'Batch Yield', render: (d, t, row) => t === 'display' ? `${d || 0} ${esc(row.batchYieldUnit || '')}` : d },
           { data: 'portionsPerBatch', title: 'Portions' },
           { data: 'itemCount', title: 'Ingredients' },
-          { data: null, title: 'Actions', orderable: false, render: () => `<button class="action-icon edit-icon" data-action="view"><i class="fas fa-eye"></i></button>` + (canManage ? `<button class="action-icon edit-icon" data-action="edit"><i class="fas fa-pen"></i></button>` : '') + (isAdmin ? `<button class="action-icon delete-icon" data-action="delete"><i class="fas fa-trash"></i></button>` : '') }
+          { data: null, title: 'Actions', orderable: false, render: (d, t, row) => `<button class="action-icon edit-icon" data-id="${row.id}" data-action="view"><i class="fas fa-eye"></i></button>` + (canManage ? `<button class="action-icon edit-icon" data-id="${row.id}" data-action="edit"><i class="fas fa-pen"></i></button>` : '') + (isAdmin ? `<button class="action-icon delete-icon" data-id="${row.id}" data-action="delete"><i class="fas fa-trash"></i></button>` : '') }
         ],
         pageLength: 10, lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']], responsive: true, dom: 'Blfrtip',
         buttons: [{ extend: 'csv', text: '<i class="fas fa-file-csv"></i> CSV', exportOptions: { columns: ':not(:last-child)' } }, { extend: 'pdf', text: '<i class="fas fa-file-pdf"></i> PDF', exportOptions: { columns: ':not(:last-child)' } }, { extend: 'print', text: '<i class="fas fa-print"></i> Print', exportOptions: { columns: ':not(:last-child)' } }],
@@ -3853,7 +3853,7 @@ function RecipesView({ user, role }) {
       tableRef.current = table;
     }
     $('#recipeTable').off('click', '.action-icon').on('click', '.action-icon', function () {
-      const id = table.row($(this).parents('tr')).data().id;
+      const id = $(this).data('id'); // read straight off the button - avoids DataTables Responsive collapsing rows into a child <tr> on mobile, which broke table.row(tr).data()
       const action = $(this).data('action');
       if (action === 'view') setViewRecipe(byId[id]);
       else if (action === 'edit') { setEditingId(id); setShowModal(true); }
@@ -3988,7 +3988,7 @@ function UsersView({ user, role }) {
           { data: 'name', title: 'Name', render: (d, t) => t === 'display' ? esc(d) : d },
           { data: 'email', title: 'Email', render: (d, t) => t === 'display' ? esc(d) : d },
           { data: 'role', title: 'Role', render: (d, t) => t === 'display' ? '<span class="role-badge ' + (d === 'Admin' ? 'role-admin' : 'role-emp') + '">' + esc(d) + '</span>' : d },
-          { data: null, title: 'Actions', orderable: false, render: () => `<button class="action-icon" data-action="view" title="View"><i class="fas fa-eye"></i></button><button class="action-icon edit-icon" data-action="edit" title="Edit"><i class="fas fa-edit"></i></button><button class="action-icon delete-icon" data-action="delete" title="Delete"><i class="fas fa-trash"></i></button>` }
+          { data: null, title: 'Actions', orderable: false, render: (d, t, row) => `<button class="action-icon" data-id="${row.id}" data-action="view" title="View"><i class="fas fa-eye"></i></button><button class="action-icon edit-icon" data-id="${row.id}" data-action="edit" title="Edit"><i class="fas fa-edit"></i></button><button class="action-icon delete-icon" data-id="${row.id}" data-action="delete" title="Delete"><i class="fas fa-trash"></i></button>` }
         ],
         pageLength: 10,
         lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
@@ -4004,7 +4004,7 @@ function UsersView({ user, role }) {
       tableInstanceRef.current = table;
     }
     $('#usersTable').off('click', '.action-icon').on('click', '.action-icon', function () {
-      const id = table.row($(this).parents('tr')).data().id;
+      const id = $(this).data('id'); // read straight off the button - avoids DataTables Responsive collapsing rows into a child <tr> on mobile, which broke table.row(tr).data()
       const act = $(this).data('action');
       if (act === 'view') setViewUser(byId[id]);
       else if (act === 'edit') openEdit(id);
