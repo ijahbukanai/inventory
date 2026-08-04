@@ -3497,7 +3497,7 @@ function PurchaseOrderModal({ suppliers, products, role, onClose, onSave }) {
             </div>
           )}
           <p className="stock-onhand-hint" style={{ marginTop: 12 }}>PO Total: <strong>{money(total)}</strong></p>
-          {!isAdmin && <p className="stock-onhand-hint" style={{ color: '#a15c00' }}><i className="fas fa-circle-info"></i> Saved as a draft for admin review — actual order quantities depend on real-time supplier stock.</p>}
+          {!isAdmin && <p className="stock-onhand-hint" style={{ color: '#a15c00' }}><i className="fas fa-circle-info"></i> Saved as a draft for supervisor/manager review — actual order quantities depend on real-time supplier stock.</p>}
           <div className="form-group"><label>Notes</label><textarea rows="2" value={notes} onChange={(e) => setNotes(e.target.value)}></textarea></div>
           <div className="form-actions">
             {isAdmin && <button type="button" className="btn btn-primary" disabled={saving} onClick={() => submit('ordered')}><i className="fas fa-paper-plane"></i> Save &amp; Order</button>}
