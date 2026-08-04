@@ -2009,7 +2009,7 @@ function ProductsView({ user, role }) {
           { data: 'qtyOnHand', title: 'Qty On Hand', render: (d, t, row) => t === 'display' ? (Number(d) <= Number(row.reorderLevel || 0) ? '<span class="status-badge status-inactive">' + d + '</span>' : d) : d },
           { data: 'reorderLevel', title: 'Reorder Level' },
           { data: 'status', title: 'Status', render: (d, t) => t === 'display' ? (d === 'discontinued' ? '<span class="status-badge status-inactive">Discontinued</span>' : '<span class="status-badge status-active">Active</span>') : (d || 'active') },
-          { data: null, title: 'Actions', orderable: false, render: () => `<button class="action-icon" data-action="view" title="View"><i class="fas fa-eye"></i></button>` + (role !== 'Viewer' ? `<button class="action-icon edit-icon" data-action="edit" title="Edit"><i class="fas fa-edit"></i></button>` : '') + `<button class="action-icon qr-icon" data-action="qr" title="QR"><i class="fas fa-qrcode"></i></button>` + (role === 'Admin' ? `<button class="action-icon delete-icon" data-action="delete" title="Delete"><i class="fas fa-trash"></i></button>` : '') }
+          { data: null, title: 'Actions', orderable: false, render: () => `<button class="action-icon" data-action="view" title="View"><i class="fas fa-eye"></i></button>` + (can('products_add', role, settings?.rolePermissions) ? `<button class="action-icon edit-icon" data-action="edit" title="Edit"><i class="fas fa-edit"></i></button>` : '') + `<button class="action-icon qr-icon" data-action="qr" title="QR"><i class="fas fa-qrcode"></i></button>` + (role === 'Admin' ? `<button class="action-icon delete-icon" data-action="delete" title="Delete"><i class="fas fa-trash"></i></button>` : '') }
         ],
         pageLength: 10,
         lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
@@ -2108,9 +2108,9 @@ function ProductsView({ user, role }) {
         <h2><i className="fas fa-boxes-stacked"></i> Products</h2>
         <div className="header-actions">
           <RefreshBtn onClick={reload} />
-          {role !== 'Viewer' && <button className="btn btn-secondary" onClick={() => setShowReorderReport(true)} disabled={reorderRows.length === 0}><i className="fas fa-triangle-exclamation"></i> <span className="btn-label">Print Reorder Report</span></button>}
-          {role !== 'Viewer' && <button className="btn btn-secondary" onClick={handlePrintLabels} disabled={products.length === 0}><i className="fas fa-print"></i> <span className="btn-label">{isFiltered ? 'Print Filtered Labels' : 'Print All QR Labels'}</span></button>}
-          {role !== 'Viewer' && <button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add Product</span></button>}
+          {can('products_print', role, settings?.rolePermissions) && <button className="btn btn-secondary" onClick={() => setShowReorderReport(true)} disabled={reorderRows.length === 0}><i className="fas fa-triangle-exclamation"></i> <span className="btn-label">Print Reorder Report</span></button>}
+          {can('products_print', role, settings?.rolePermissions) && <button className="btn btn-secondary" onClick={handlePrintLabels} disabled={products.length === 0}><i className="fas fa-print"></i> <span className="btn-label">{isFiltered ? 'Print Filtered Labels' : 'Print All QR Labels'}</span></button>}
+          {can('products_add', role, settings?.rolePermissions) && <button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add Product</span></button>}
         </div>
       </div>
       {!loading && (
@@ -3339,6 +3339,7 @@ function ExpenseModal({ editItem, onClose, onSave }) {
 
 // --- Expenses View ---
 function ExpensesView({ user, role }) {
+  const { settings } = useConfig();
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -3376,7 +3377,7 @@ function ExpensesView({ user, role }) {
           { data: 'amount', title: 'Amount', render: (d, t) => t === 'display' ? money(d) : d },
           { data: 'paymentMethod', title: 'Paid Via', render: (d, t) => t === 'display' ? esc(d || '-') : d },
           { data: 'notes', title: 'Notes', render: (d, t) => t === 'display' ? esc(d || '-') : d },
-          { data: null, title: 'Actions', orderable: false, render: () => (role !== 'Viewer' ? `<button class="action-icon edit-icon" data-action="edit"><i class="fas fa-edit"></i></button>` : '') + (role === 'Admin' ? `<button class="action-icon delete-icon" data-action="delete"><i class="fas fa-trash"></i></button>` : '') }
+          { data: null, title: 'Actions', orderable: false, render: () => (can('expenses_add', role, settings?.rolePermissions) ? `<button class="action-icon edit-icon" data-action="edit"><i class="fas fa-edit"></i></button>` : '') + (role === 'Admin' ? `<button class="action-icon delete-icon" data-action="delete"><i class="fas fa-trash"></i></button>` : '') }
         ],
         pageLength: 10, lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']], responsive: true, dom: 'Blfrtip',
         buttons: [{ extend: 'csv', text: '<i class="fas fa-file-csv"></i> CSV', exportOptions: { columns: ':not(:last-child)' } }, { extend: 'pdf', text: '<i class="fas fa-file-pdf"></i> PDF', exportOptions: { columns: ':not(:last-child)' } }, { extend: 'print', text: '<i class="fas fa-print"></i> Print', exportOptions: { columns: ':not(:last-child)' } }],
@@ -3407,7 +3408,7 @@ function ExpensesView({ user, role }) {
   return (
     <div className="data-section">
       {load && <TopLoadingBar />}
-      <div className="section-header"><h2><i className="fas fa-money-bill-trend-up"></i> Expenses</h2><div className="header-actions"><RefreshBtn onClick={reload} />{role !== 'Viewer' && <button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add Expense</span></button>}</div></div>
+      <div className="section-header"><h2><i className="fas fa-money-bill-trend-up"></i> Expenses</h2><div className="header-actions"><RefreshBtn onClick={reload} />{can('expenses_add', role, settings?.rolePermissions) && <button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add Expense</span></button>}</div></div>
       {!loading && (
         <FiltersPanel onClear={() => setFilters({ dateFrom: '', dateTo: '', category: '' })}>
           <div className="filter-group"><label><i className="fas fa-calendar-alt"></i> Date From</label><input type="date" className="filter-input" value={filters.dateFrom} onChange={(e) => setFilters(f => ({ ...f, dateFrom: e.target.value }))} /></div>
@@ -3425,7 +3426,8 @@ function ExpensesView({ user, role }) {
 
 // --- Purchase Order create modal (supplier + line items) ---
 function PurchaseOrderModal({ suppliers, products, role, onClose, onSave }) {
-  const isAdmin = role === 'Admin';
+  const { settings } = useConfig();
+  const isAdmin = can('po_order', role, settings?.rolePermissions);
   const [supplierId, setSupplierId] = useState('');
   const [expectedDate, setExpectedDate] = useState('');
   const [notes, setNotes] = useState('');
@@ -3510,8 +3512,9 @@ function PurchaseOrderModal({ suppliers, products, role, onClose, onSave }) {
 
 // --- PO detail + receive ---
 function PoDetailModal({ po, role, onClose, onReceive }) {
+  const { settings } = useConfig();
   if (!po) return null;
-  const receivable = role === 'Admin' && po.status !== 'received' && po.status !== 'cancelled';
+  const receivable = can('po_receive', role, settings?.rolePermissions) && po.status !== 'received' && po.status !== 'cancelled';
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal modal-lg" onClick={(e) => e.stopPropagation()}>
@@ -3543,6 +3546,7 @@ function PoDetailModal({ po, role, onClose, onReceive }) {
 
 // --- Purchase Orders View ---
 function PurchaseOrdersView({ user, role }) {
+  const { settings } = useConfig();
   const [showModal, setShowModal] = useState(false);
   const [viewPo, setViewPo] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -3586,7 +3590,7 @@ function PurchaseOrdersView({ user, role }) {
           { data: 'total', title: 'Total', render: (d, t) => t === 'display' ? money(d) : d },
           { data: 'status', title: 'Status', render: (d, t) => t === 'display' ? statusBadge(d) : d },
           { data: 'expectedDate', title: 'Expected', render: (d, t) => t === 'display' ? esc(d || '-') : d },
-          { data: null, title: 'Actions', orderable: false, render: (d, t, row) => `<button class="action-icon edit-icon" data-action="view"><i class="fas fa-eye"></i></button>` + (role === 'Admin' && row.status !== 'received' && row.status !== 'cancelled' ? `<button class="action-icon qr-icon" data-action="receive"><i class="fas fa-dolly"></i></button>` : '') + (role === 'Admin' ? `<button class="action-icon delete-icon" data-action="delete"><i class="fas fa-trash"></i></button>` : '') }
+          { data: null, title: 'Actions', orderable: false, render: (d, t, row) => `<button class="action-icon edit-icon" data-action="view"><i class="fas fa-eye"></i></button>` + (can('po_receive', role, settings?.rolePermissions) && row.status !== 'received' && row.status !== 'cancelled' ? `<button class="action-icon qr-icon" data-action="receive"><i class="fas fa-dolly"></i></button>` : '') + (role === 'Admin' ? `<button class="action-icon delete-icon" data-action="delete"><i class="fas fa-trash"></i></button>` : '') }
         ],
         pageLength: 10, lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']], responsive: true, dom: 'Blfrtip',
         buttons: [{ extend: 'csv', text: '<i class="fas fa-file-csv"></i> CSV', exportOptions: { columns: ':not(:last-child)' } }, { extend: 'pdf', text: '<i class="fas fa-file-pdf"></i> PDF', exportOptions: { columns: ':not(:last-child)' } }, { extend: 'print', text: '<i class="fas fa-print"></i> Print', exportOptions: { columns: ':not(:last-child)' } }],
@@ -3614,7 +3618,7 @@ function PurchaseOrdersView({ user, role }) {
   };
 
   const doReceive = async (po) => {
-    if (!po || role !== 'Admin') return;
+    if (!po || !can('po_receive', role, settings?.rolePermissions)) return;
     const res = await Swal.fire({ icon: 'question', title: 'Receive PO?', text: `Post ${(po.items || []).length} line(s) as Stock In and mark ${po.poNumber} received?`, showCancelButton: true, confirmButtonText: 'Receive', input: 'checkbox', inputValue: 1, inputPlaceholder: 'Also update product costs' });
     if (!res.isConfirmed) return;
     setViewPo(null); setLoad('Receiving stock...');
@@ -3807,7 +3811,9 @@ function RecipeDetailModal({ recipe, movements, onClose, onProduce }) {
 
 // --- Recipes View ---
 function RecipesView({ user, role }) {
+  const { settings } = useConfig();
   const isAdmin = role === 'Admin';
+  const canManage = can('recipes_manage', role, settings?.rolePermissions);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [viewRecipe, setViewRecipe] = useState(null);
@@ -3838,7 +3844,7 @@ function RecipesView({ user, role }) {
           { data: 'batchYieldQty', title: 'Batch Yield', render: (d, t, row) => t === 'display' ? `${d || 0} ${esc(row.batchYieldUnit || '')}` : d },
           { data: 'portionsPerBatch', title: 'Portions' },
           { data: 'itemCount', title: 'Ingredients' },
-          { data: null, title: 'Actions', orderable: false, render: () => `<button class="action-icon edit-icon" data-action="view"><i class="fas fa-eye"></i></button>` + (isAdmin ? `<button class="action-icon edit-icon" data-action="edit"><i class="fas fa-pen"></i></button><button class="action-icon delete-icon" data-action="delete"><i class="fas fa-trash"></i></button>` : '') }
+          { data: null, title: 'Actions', orderable: false, render: () => `<button class="action-icon edit-icon" data-action="view"><i class="fas fa-eye"></i></button>` + (canManage ? `<button class="action-icon edit-icon" data-action="edit"><i class="fas fa-pen"></i></button>` : '') + (isAdmin ? `<button class="action-icon delete-icon" data-action="delete"><i class="fas fa-trash"></i></button>` : '') }
         ],
         pageLength: 10, lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']], responsive: true, dom: 'Blfrtip',
         buttons: [{ extend: 'csv', text: '<i class="fas fa-file-csv"></i> CSV', exportOptions: { columns: ':not(:last-child)' } }, { extend: 'pdf', text: '<i class="fas fa-file-pdf"></i> PDF', exportOptions: { columns: ':not(:last-child)' } }, { extend: 'print', text: '<i class="fas fa-print"></i> Print', exportOptions: { columns: ':not(:last-child)' } }],
@@ -3853,7 +3859,7 @@ function RecipesView({ user, role }) {
       else if (action === 'edit') { setEditingId(id); setShowModal(true); }
       else handleDelete(byId[id]);
     });
-  }, [loading, tableData, isAdmin]);
+  }, [loading, tableData, isAdmin, canManage]);
 
   useEffect(() => () => { if (tableRef.current) { try { tableRef.current.destroy(); tableRef.current = null; } catch (e) {} } }, []);
 
@@ -3897,7 +3903,7 @@ function RecipesView({ user, role }) {
         <h2><i className="fas fa-book-open"></i> Recipes</h2>
         <div className="header-actions">
           <RefreshBtn onClick={reload} />
-          {isAdmin && <button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">New Recipe</span></button>}
+          {canManage && <button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">New Recipe</span></button>}
         </div>
       </div>
       <table id="recipeTable" className="display" style={{ width: '100%' }}></table>
@@ -4201,9 +4207,28 @@ function SettingsView({ user, role }) {
   const [newCat, setNewCat] = useState('');
   const [saving, setSaving] = useState(false);
   const [load, setLoad] = useState('');
+  const [rolePerms, setRolePerms] = useState(() => ({
+    User: Object.assign({}, DEFAULT_ROLE_PERMISSIONS.User, (settings && settings.rolePermissions && settings.rolePermissions.User) || {}),
+    Viewer: Object.assign({}, DEFAULT_ROLE_PERMISSIONS.Viewer, (settings && settings.rolePermissions && settings.rolePermissions.Viewer) || {})
+  }));
+  const [savingPerms, setSavingPerms] = useState(false);
 
   useEffect(() => { setForm(settings || {}); }, [settings]);
+  useEffect(() => {
+    setRolePerms({
+      User: Object.assign({}, DEFAULT_ROLE_PERMISSIONS.User, (settings && settings.rolePermissions && settings.rolePermissions.User) || {}),
+      Viewer: Object.assign({}, DEFAULT_ROLE_PERMISSIONS.Viewer, (settings && settings.rolePermissions && settings.rolePermissions.Viewer) || {})
+    });
+  }, [settings]);
   const upd = (k, v) => setForm(f => Object.assign({}, f, { [k]: v }));
+  const togglePerm = (roleKey, permKey) => setRolePerms(p => Object.assign({}, p, { [roleKey]: Object.assign({}, p[roleKey], { [permKey]: !p[roleKey][permKey] }) }));
+  const savePermissions = async () => {
+    setSavingPerms(true);
+    const r = await fbSaveSettings({ rolePermissions: rolePerms }, user);
+    setSavingPerms(false);
+    if (r.success) { refreshConfig(); Swal.fire({ icon: 'success', title: 'Saved', text: 'Permissions updated', timer: 1600, showConfirmButton: false }); }
+    else Swal.fire({ icon: 'error', title: 'Error', text: r.message });
+  };
 
   const save = async () => {
     setSaving(true);
@@ -4279,6 +4304,27 @@ function SettingsView({ user, role }) {
           {categories.length === 0 ? <p style={{ color: '#999' }}>No categories yet.</p> : categories.map(c => (
             <span className="cat-chip" key={c.id}><i className="fas fa-tag"></i> {c.name}<button onClick={() => delCat(c)} title="Delete"><i className="fas fa-times"></i></button></span>
           ))}
+        </div>
+      </LteCard>
+
+      <LteCard title="Role Permissions" icon="fa-user-lock">
+        <p style={{ color: '#666', marginBottom: 14 }}>Turn action buttons on or off for the <strong>User</strong> and <strong>Viewer</strong> roles. Admin always has full access. Viewer stays limited to Products / Expenses / About App no matter what's toggled here.</p>
+        <div className="about-table-wrapper">
+          <table className="about-roles-table">
+            <thead><tr><th>Action</th><th style={{ textAlign: 'center' }}>User</th><th style={{ textAlign: 'center' }}>Viewer</th></tr></thead>
+            <tbody>
+              {PERMISSION_DEFS.map(p => (
+                <tr key={p.key}>
+                  <td>{p.label}<div className="cell-sub">{p.module}</div></td>
+                  <td style={{ textAlign: 'center' }}><input type="checkbox" checked={!!rolePerms.User[p.key]} onChange={() => togglePerm('User', p.key)} /></td>
+                  <td style={{ textAlign: 'center' }}><input type="checkbox" checked={!!rolePerms.Viewer[p.key]} onChange={() => togglePerm('Viewer', p.key)} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="form-actions" style={{ marginTop: 14 }}>
+          <button type="button" className="btn btn-primary" disabled={savingPerms} onClick={savePermissions}><i className="fas fa-save"></i> Save Permissions</button>
         </div>
       </LteCard>
     </div>
