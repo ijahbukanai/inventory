@@ -414,6 +414,7 @@ table.dataTable tbody tr.row-ok td { background: #f3faf5 !important; }
   .header-actions { display: flex; gap: 8px; }
   .header-actions .btn { flex: 1; padding: 10px 8px; }
   .quick-actions .btn-label, .pos-scan-actions .btn-label, .header-actions .btn-label { display: none; }
+  .quick-actions .btn-label { display: inline; }
 
   .form-grid { grid-template-columns: 1fr; }
   .dashboard-grid-3, .dashboard-grid-2 { grid-template-columns: 1fr; }
@@ -559,6 +560,16 @@ window.db = firebase.database();
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function(c) { return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]; }); }
 function nowIso() { return new Date().toISOString(); }
 
+// category -> SKU prefix, used by fbGenerateSku(). Falls back to plain 'SKU' for any category not in this list.
+const CATEGORY_SKU_PREFIX = {
+  'Make to Stock': 'BKU',
+  'Make to Order': 'PUL',
+  'Seasonings': 'BMK',
+  'Ready to Use Seasoning': 'BMT',
+  'Finished Goods': 'PKT',
+  'Additional/Ala Carte': 'ADD'
+};
+
 // seed demo login + sample records once, first run only
 async function seedDemoData() {
   const usersSnap = await db.ref('users').once('value');
@@ -569,6 +580,23 @@ async function seedDemoData() {
   }
 }
 seedDemoData();
+
+// ensure the standard business categories exist - adds any that are missing, never removes/renames existing ones
+async function seedCategories() {
+  try {
+    const names = Object.keys(CATEGORY_SKU_PREFIX);
+    const snap = await db.ref('categories').once('value');
+    const existing = snap.val() || {};
+    const existingNames = new Set(Object.values(existing).map(function(c) { return c.name; }));
+    const missing = names.filter(function(n) { return !existingNames.has(n); });
+    if (missing.length) {
+      const updates = {};
+      missing.forEach(function(n) { updates[db.ref('categories').push().key] = { name: n, createdAt: nowIso() }; });
+      await db.ref('categories').update(updates);
+    }
+  } catch (e) { /* non-critical - categories can still be added manually in Settings */ }
+}
+seedCategories();
 
 async function fbLogin(email, password) {
   try {
@@ -669,12 +697,13 @@ async function fbGetLogs() {
 }
 
 // products - sku via the one transaction() in the app, low-contention sequential counter
-async function fbGenerateSku() {
+async function fbGenerateSku(category) {
   try {
-    const res = await db.ref('counters/products').transaction(function(cur) { return (cur || 0) + 1; });
+    const prefix = CATEGORY_SKU_PREFIX[category] || 'SKU';
+    const res = await db.ref('counters/sku_' + prefix).transaction(function(cur) { return (cur || 0) + 1; });
     if (!res.committed) return { success: false, message: 'Could not reserve SKU number, try again' };
     const n = res.snapshot.val();
-    return { success: true, data: 'SKU-' + String(n).padStart(5, '0') };
+    return { success: true, data: prefix + '-' + String(n).padStart(3, '0') };
   } catch (e) { return { success: false, message: e.message }; }
 }
 
@@ -697,7 +726,7 @@ async function fbGetProducts() {
 
 async function fbAddProduct(data, user) {
   try {
-    const skuRes = await fbGenerateSku();
+    const skuRes = await fbGenerateSku(data.category);
     if (!skuRes.success) return { success: false, message: skuRes.message };
     const ref = await db.ref('products').push(Object.assign({}, data, { sku: skuRes.data, addedBy: user.email, createdAt: nowIso() }));
     await fbLogActivity('Add Product', user, data.name + ' (' + skuRes.data + ')');
@@ -1031,11 +1060,12 @@ const useCategoryOpts = () => { const { categories } = useConfig(); return useMe
 const LOGO_URL = 'https://blogger.googleusercontent.com/img/b/R29vZ2xl/AVvXsEg3JVFF0k9Dh3AuAM3N_m5kL7zraBSht85DPRLA3uGpSdQ3r8277AdQ8uCSC-lU1cOm5VHyQ-98AHCqiIvaEHtoOgsqymo6v_v1bG3FUFhbt-R10UafbvrXf_jlTuDNS5AL8ZJUVWm8MJBUIw_ZaltMt636L85rce95Qe2IqHRUQZr-_p8/s1600/icon2.jpg';
 
 const CATEGORY_OPTS = [
-  { value: 'Electronics', label: 'Electronics' },
-  { value: 'Clothing', label: 'Clothing' },
-  { value: 'Food', label: 'Food' },
-  { value: 'Services', label: 'Services' },
-  { value: 'Other', label: 'Other' }
+  { value: 'Make to Stock', label: 'Make to Stock' },
+  { value: 'Make to Order', label: 'Make to Order' },
+  { value: 'Seasonings', label: 'Seasonings' },
+  { value: 'Ready to Use Seasoning', label: 'Ready to Use Seasoning' },
+  { value: 'Finished Goods', label: 'Finished Goods' },
+  { value: 'Additional/Ala Carte', label: 'Additional/Ala Carte' }
 ];
 const ACTIVE_OPTS = [{ value: '1', label: 'Active' }, { value: '0', label: 'Inactive' }];
 const LOW_STOCK_OPTS = [{ value: '1', label: 'Low Stock Only' }];
@@ -1049,6 +1079,7 @@ const PERMISSION_DEFS = [
   { key: 'stock_bulk_receive', label: 'Bulk Receive', module: 'Stock In/Out' },
   { key: 'stock_stocktake', label: 'Stocktake (Adjustment)', module: 'Stock In/Out' },
   { key: 'products_add', label: 'Add / Edit Product', module: 'Products' },
+  { key: 'customers_add', label: 'Add / Edit Customer', module: 'Customers' },
   { key: 'products_print', label: 'Print Reorder Report / QR Labels', module: 'Products' },
   { key: 'expenses_add', label: 'Add / Edit Expense', module: 'Expenses' },
   { key: 'po_order', label: 'Save & Order (finalize a PO)', module: 'Purchase Orders' },
@@ -1058,8 +1089,8 @@ const PERMISSION_DEFS = [
 // Baseline defaults - used until Admin changes them in Settings > Permissions. Bulk Receive & Stocktake
 // default ON for User per the real-world workflow (User still can't do raw manual Stock In/Out by default).
 const DEFAULT_ROLE_PERMISSIONS = {
-  User: { stock_in_out: false, stock_bulk_receive: true, stock_stocktake: true, products_add: true, products_print: true, expenses_add: false, po_order: false, po_receive: false, recipes_manage: false },
-  Viewer: { stock_in_out: false, stock_bulk_receive: false, stock_stocktake: false, products_add: false, products_print: false, expenses_add: false, po_order: false, po_receive: false, recipes_manage: false }
+  User: { stock_in_out: false, stock_bulk_receive: true, stock_stocktake: true, products_add: true, products_print: true, expenses_add: false, po_order: false, po_receive: false, recipes_manage: false, customers_add: true },
+  Viewer: { stock_in_out: false, stock_bulk_receive: false, stock_stocktake: false, products_add: false, products_print: false, expenses_add: false, po_order: false, po_receive: false, recipes_manage: false, customers_add: false }
 };
 // can(key, role, rolePermissions?) - Admin is always true; User/Viewer fall back to the default above
 // until an Admin-configured value exists in settings.rolePermissions.
@@ -1623,6 +1654,7 @@ function RecordModal({ record, onClose, onSave }) {
 
 // --- Records View (DataTable CRUD) ---
 function RecordsView({ user, role }) {
+  const { settings } = useConfig();
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -1664,7 +1696,7 @@ function RecordsView({ user, role }) {
           { data: 'amount', title: 'Balance', render: (d, t) => t === 'display' ? money(d) : d },
           { data: 'active', title: 'Active', render: (d, t, row) => t === 'display' ? `<input type="checkbox" ${d ? 'checked' : ''} class="toggle" onchange="toggleActive('${row.id}', this.checked ? 1 : 0)">` : d },
           { data: 'createdAt', title: 'Created', render: (d, t) => t === 'display' ? formatDateForDisplay(d) : d },
-          { data: null, title: 'Actions', orderable: false, render: (d, t, row) => `<button class="action-icon" data-id="${row.id}" data-action="view" title="View"><i class="fas fa-eye"></i></button><button class="action-icon edit-icon" data-id="${row.id}" data-action="edit" title="Edit"><i class="fas fa-edit"></i></button>` + (role === 'Admin' ? `<button class="action-icon delete-icon" data-id="${row.id}" data-action="delete" title="Delete"><i class="fas fa-trash"></i></button>` : '') }
+          { data: null, title: 'Actions', orderable: false, render: (d, t, row) => `<button class="action-icon" data-id="${row.id}" data-action="view" title="View"><i class="fas fa-eye"></i></button>` + (can('customers_add', role, settings?.rolePermissions) ? `<button class="action-icon edit-icon" data-id="${row.id}" data-action="edit" title="Edit"><i class="fas fa-edit"></i></button>` : '') + (role === 'Admin' ? `<button class="action-icon delete-icon" data-id="${row.id}" data-action="delete" title="Delete"><i class="fas fa-trash"></i></button>` : '') }
         ],
         pageLength: 10,
         lengthMenu: [[10, 25, 50, -1], [10, 25, 50, 'All']],
@@ -1755,7 +1787,7 @@ function RecordsView({ user, role }) {
       {load && <TopLoadingBar />}
       <div className="section-header">
         <h2><i className="fas fa-address-book"></i> Customers</h2>
-        <div className="header-actions"><RefreshBtn onClick={reload} /><button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add Customer</span></button></div>
+        <div className="header-actions"><RefreshBtn onClick={reload} />{can('customers_add', role, settings?.rolePermissions) && <button className="btn btn-success" onClick={() => { setEditingId(null); setShowModal(true); }}><i className="fas fa-plus"></i> <span className="btn-label">Add Customer</span></button>}</div>
       </div>
       {!loading && (
         <FiltersPanel onClear={clearFilters}>
@@ -3646,7 +3678,7 @@ function PurchaseOrdersView({ user, role }) {
 }
 
 // --- Recipe Modal (Add/Edit) - Admin only. Can pick an existing product to produce, or create a new one inline. ---
-function RecipeModal({ editItem, products, onClose, onSave }) {
+function RecipeModal({ editItem, products, role, onClose, onSave }) {
   const [producesMode, setProducesMode] = useState('existing'); // 'existing' | 'new'
   const [producesProductId, setProducesProductId] = useState(editItem?.producesProductId || '');
   const [newProductName, setNewProductName] = useState('');
@@ -3907,7 +3939,7 @@ function RecipesView({ user, role }) {
         </div>
       </div>
       <table id="recipeTable" className="display" style={{ width: '100%' }}></table>
-      {showModal && <RecipeModal editItem={editingId ? byId[editingId] : null} products={products} onClose={() => { setShowModal(false); setEditingId(null); }} onSave={handleSave} />}
+      {showModal && <RecipeModal editItem={editingId ? byId[editingId] : null} products={products} role={role} onClose={() => { setShowModal(false); setEditingId(null); }} onSave={handleSave} />}
       {viewRecipe && <RecipeDetailModal recipe={viewRecipe} movements={movements} onClose={() => setViewRecipe(null)} onProduce={handleProduce} />}
     </div>
   );
