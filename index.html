@@ -239,10 +239,14 @@ table.dataTable tbody tr:hover { background: #f9f9f9 !important; }
 .about-version { font-size: 12px; color: #999; margin-top: 5px; }
 
 /* Toggle Switches */
-.toggle { appearance: none; width: 44px; height: 24px; border-radius: 24px; background: #ccc; position: relative; cursor: pointer; transition: background .3s; border: none; outline: none; vertical-align: middle; }
-.toggle:checked { background: #0074D9; }
-.toggle::before { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .3s; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
-.toggle:checked::before { transform: translateX(20px); }
+.toggle { appearance: none; -webkit-appearance: none; width: 48px; height: 26px; min-width: 48px; flex-shrink: 0; border-radius: 26px; background: #dcdfe3; position: relative; cursor: pointer; transition: background .25s ease; border: none; outline: none; vertical-align: middle; box-shadow: inset 0 1px 2px rgba(0,0,0,.06); }
+.toggle:checked { background: var(--color-primary); }
+.toggle::before { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .25s ease; box-shadow: 0 2px 4px rgba(0,0,0,.25); }
+.toggle:checked::before { transform: translateX(22px); }
+.toggle:hover { filter: brightness(0.97); }
+.toggle:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+/* .form-group input{width:100%;padding...} was stretching every .toggle inside a form-group into a full-width bar - this wins on specificity and restores the compact pill everywhere, desktop and mobile alike */
+.form-group input.toggle, .form-group input[type="checkbox"].toggle { width: 48px !important; min-width: 48px !important; height: 26px !important; padding: 0 !important; border: none !important; font-size: 0 !important; }
 
 /* File Input (DaisyUI-style) */
 .file-input { width: 100%; max-width: 100%; height: 42px; border: 1px solid #cfd6dd; border-radius: 3px; background: #fff; color: #444; cursor: pointer; }
@@ -489,7 +493,7 @@ table.dataTable tbody tr.row-ok td { background: #f3faf5 !important; }
 #pos-qr-reader { width: 100%; }
 
 /* Thermal receipt slip (POS checkout, 80mm) */
-.thermal-slip-print { width: 80mm; max-width: 80mm; margin: 20px auto; padding: 10px 8px; background: #fff; color: #000; font-family: 'Courier New', Courier, monospace; font-size: 12px; line-height: 1.5; border: 1px dashed #ccc; }
+.thermal-slip-print { width: 58mm; max-width: 58mm; margin: 20px auto; padding: 8px 6px; background: #fff; color: #000; font-family: 'Courier New', Courier, monospace; font-size: 10.5px; line-height: 1.45; border: 1px dashed #ccc; }
 .ts-header { text-align: center; margin-bottom: 8px; }
 .ts-logo { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; margin-bottom: 4px; }
 .ts-app-name { font-weight: 700; font-size: 14px; text-transform: uppercase; }
@@ -497,12 +501,12 @@ table.dataTable tbody tr.row-ok td { background: #f3faf5 !important; }
 .ts-meta { margin-bottom: 6px; }
 .ts-meta-row { display: flex; justify-content: space-between; gap: 8px; }
 .ts-divider { border-top: 1px dashed #000; margin: 8px 0; }
-.ts-item-row { display: flex; justify-content: space-between; gap: 6px; padding: 3px 0; }
-.ts-item-head { font-weight: 700; border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px; }
+.ts-item-row { display: flex; flex-direction: column; gap: 1px; padding: 3px 0; }
+.ts-item-head { display: flex; flex-direction: row; justify-content: space-between; font-weight: 700; border-bottom: 1px dashed #000; padding-bottom: 4px; margin-bottom: 4px; }
 .ts-item-name-col { flex: 1; min-width: 0; }
 .ts-item-name { word-break: break-word; }
 .ts-item-sku { display: block; font-size: 10px; color: #444; }
-.ts-item-calc { white-space: nowrap; text-align: right; flex-shrink: 0; }
+.ts-item-calc { white-space: normal; text-align: right; }
 .ts-row { display: flex; justify-content: space-between; padding: 2px 0; }
 .ts-total { font-weight: 700; font-size: 15px; border-top: 1px solid #000; margin-top: 4px; padding-top: 6px; }
 .ts-footer { text-align: center; margin-top: 10px; font-size: 11px; }
@@ -520,20 +524,47 @@ table.dataTable tbody tr.row-ok td { background: #f3faf5 !important; }
 .rr-table th, .rr-table td { padding: 8px 10px; border: 1px solid #999; text-align: left; }
 .rr-table th { background: #eee; font-weight: 700; }
 
-/* Print - QR labels + thermal receipt + reorder report share one print pass (only one overlay is ever mounted at a time) */
+/* Purchase Order document (print only, always A4) */
+.po-print { display: none; }
+.po-print-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 14px; }
+.po-print-brand { display: flex; align-items: center; gap: 14px; }
+.po-print-logo { width: 54px; height: 54px; border-radius: 50%; object-fit: cover; }
+.po-print-brand-name { font-size: 16px; font-weight: 700; color: #000; }
+.po-print-brand-sub { font-size: 11.5px; color: #444; }
+.po-print-title { text-align: right; }
+.po-print-title h1 { font-size: 22px; color: #000; letter-spacing: 1px; }
+.po-print-title .po-num { font-size: 13px; color: #444; margin-top: 2px; }
+.po-print-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; margin-bottom: 20px; font-size: 13px; }
+.po-print-meta-row { display: flex; justify-content: space-between; border-bottom: 1px dotted #ccc; padding: 4px 0; }
+.po-print-meta-row span:first-child { color: #666; }
+.po-print-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-bottom: 16px; }
+.po-print-table th, .po-print-table td { padding: 8px 10px; border: 1px solid #999; text-align: left; }
+.po-print-table th { background: #eee; font-weight: 700; }
+.po-print-table td.num, .po-print-table th.num { text-align: right; }
+.po-print-total { display: flex; justify-content: flex-end; margin-bottom: 20px; }
+.po-print-total table { font-size: 14px; }
+.po-print-total td { padding: 4px 10px; }
+.po-print-total .grand td { font-weight: 700; font-size: 16px; border-top: 2px solid #000; }
+.po-print-notes { font-size: 12.5px; color: #333; margin-bottom: 30px; }
+.po-print-sign { display: flex; justify-content: space-between; margin-top: 40px; font-size: 12.5px; }
+.po-print-sign > div { text-align: center; width: 180px; }
+.po-print-sign .sign-line { margin-top: 50px; border-top: 1px solid #000; padding-top: 4px; }
+
+/* Print - QR labels + thermal receipt + reorder report + PO document share one print pass (only one overlay is ever mounted at a time) */
 .qr-print-stage { display: none; }
 .qr-label-print { display: none; }
 @media print {
   body * { visibility: hidden !important; }
-  .qr-print-stage, .qr-print-stage *, .thermal-slip-print, .thermal-slip-print *, .reorder-report-print, .reorder-report-print * { visibility: visible !important; }
+  .qr-print-stage, .qr-print-stage *, .thermal-slip-print, .thermal-slip-print *, .reorder-report-print, .reorder-report-print *, .po-print, .po-print * { visibility: visible !important; }
   .qr-print-stage { display: flex !important; flex-wrap: wrap; align-content: flex-start; gap: 3mm; position: absolute; top: 0; left: 0; width: 100%; padding: 4mm; background: #fff; }
   .qr-label-print { display: flex !important; flex-direction: column; align-items: center; justify-content: center; width: 50mm; height: 30mm; border: 1px dashed #999; text-align: center; page-break-inside: avoid; background: #fff; }
   .qr-label-print canvas { width: 22mm !important; height: 22mm !important; }
   .qr-label-print .qr-label-sku { font-size: 9px; font-weight: 700; margin-top: 1mm; letter-spacing: .5px; color: #000; }
-  .thermal-slip-print { position: absolute; top: 0; left: 0; width: 80mm; max-width: 80mm; margin: 0; border: none; }
+  .thermal-slip-print { position: absolute; top: 0; left: 0; width: 58mm; max-width: 58mm; margin: 0; border: none; }
   .reorder-report-print { display: block !important; position: absolute; top: 0; left: 0; width: 100%; padding: 10mm; background: #fff; }
+  .po-print { display: block !important; position: absolute; top: 0; left: 0; width: 100%; padding: 15mm; background: #fff; }
 }
-@page { size: 80mm auto; margin: 0; }
+@page { size: 58mm auto; margin: 0; }
 
 /* Print - A4 paper size option for the thermal slip (toggled via 'print-a4' class on <html> right before window.print()) */
 @media print {
@@ -2232,7 +2263,7 @@ function StockMovementModal({ type, products, movements, onClose, onSave }) {
               {!isOut && <div className="form-group"><label><i className="fas fa-calendar-xmark"></i> Expiry Date</label><input type="date" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} /></div>}
               <div className="form-group"><label><i className="fas fa-location-dot"></i> Location / Bin</label><input type="text" value={location} onChange={(e) => setLocation(e.target.value)} /></div>
             </div>
-            {!isOut && <div className="form-group"><label className="stock-cost-check"><input type="checkbox" checked={updateCost} onChange={(e) => setUpdateCost(e.target.checked)} /> Update product cost to this unit cost</label></div>}
+            {!isOut && <div className="form-group"><label className="stock-cost-check"><input type="checkbox" className="toggle" checked={updateCost} onChange={(e) => setUpdateCost(e.target.checked)} /> Update product cost to this unit cost</label></div>}
             <div className="form-group"><label>Notes</label><textarea rows="2" value={notes} onChange={(e) => setNotes(e.target.value)}></textarea></div>
             <div className="form-actions">
               <button type="submit" className={`btn ${isOut ? 'btn-danger' : 'btn-success'}`} disabled={saving}>{saving ? <><i className="fas fa-spinner fa-spin"></i> Saving...</> : <><i className="fas fa-save"></i> Record Stock {isOut ? 'Out' : 'In'}</>}</button>
@@ -2659,7 +2690,7 @@ function ThermalReceiptOverlay({ sale, onClose }) {
         <div className="modal-body thermal-slip-modal-body">
           <ThermalSlip sale={sale} />
           <div className="form-actions thermal-slip-actions">
-            <button type="button" className="btn btn-primary" onClick={() => window.print()}><i className="fas fa-print"></i> Print (80mm)</button>
+            <button type="button" className="btn btn-primary" onClick={() => window.print()}><i className="fas fa-print"></i> Print (58mm)</button>
             <button type="button" className="btn btn-secondary" onClick={printA4Receipt}><i className="fas fa-file-lines"></i> Print A4</button>
             <button type="button" className="btn btn-secondary" onClick={onClose}><i className="fas fa-times"></i> Close</button>
           </div>
@@ -3457,6 +3488,73 @@ function ExpensesView({ user, role }) {
 }
 
 // --- Purchase Order create modal (supplier + line items) ---
+// --- PO print document (A4 only - always forces the a4-receipt @page size, same trick as the receipt's Print A4 button) ---
+function PoPrintDocument({ po, onDone }) {
+  useEffect(() => {
+    document.documentElement.classList.add('print-a4');
+    window.print();
+    document.documentElement.classList.remove('print-a4');
+  }, []);
+  useEffect(() => {
+    const afterPrint = () => onDone();
+    window.addEventListener('afterprint', afterPrint);
+    return () => window.removeEventListener('afterprint', afterPrint);
+  }, [onDone]);
+
+  if (!po) return null;
+  const items = po.items || [];
+  return (
+    <div className="po-print">
+      <div className="po-print-header">
+        <div className="po-print-brand">
+          <img src={CFG.logoUrl || LOGO_URL} alt="" className="po-print-logo" />
+          <div>
+            <div className="po-print-brand-name">{CFG.business?.name || 'Inventory Records Manager'}</div>
+            {CFG.business?.address ? <div className="po-print-brand-sub">{CFG.business.address}</div> : null}
+            {CFG.business?.phone ? <div className="po-print-brand-sub">{CFG.business.phone}</div> : null}
+          </div>
+        </div>
+        <div className="po-print-title">
+          <h1>PURCHASE ORDER</h1>
+          <div className="po-num">{po.poNumber}</div>
+        </div>
+      </div>
+      <div className="po-print-meta">
+        <div>
+          <div className="po-print-meta-row"><span>Supplier</span><span>{po.supplierName || '-'}</span></div>
+          <div className="po-print-meta-row"><span>Status</span><span>{po.status || 'draft'}</span></div>
+        </div>
+        <div>
+          <div className="po-print-meta-row"><span>Date Issued</span><span>{formatDateForDisplay(po.createdAt)}</span></div>
+          <div className="po-print-meta-row"><span>Expected Date</span><span>{po.expectedDate || '-'}</span></div>
+        </div>
+      </div>
+      <table className="po-print-table">
+        <thead><tr><th>#</th><th>Item</th><th>SKU</th><th className="num">Qty</th><th className="num">Unit Cost</th><th className="num">Line Total</th></tr></thead>
+        <tbody>
+          {items.map((it, i) => (
+            <tr key={it.sku || i}>
+              <td>{i + 1}</td><td>{it.name}</td><td>{it.sku}</td><td className="num">{it.qty}</td>
+              <td className="num">{money(it.unitCost)}</td><td className="num">{money(it.lineTotal != null ? it.lineTotal : it.qty * it.unitCost)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="po-print-total">
+        <table>
+          <tbody><tr className="grand"><td>PO Total</td><td>{money(po.total)}</td></tr></tbody>
+        </table>
+      </div>
+      {po.notes ? <div className="po-print-notes"><strong>Notes:</strong> {po.notes}</div> : null}
+      <div className="po-print-sign">
+        <div><div className="sign-line">Prepared By</div></div>
+        <div><div className="sign-line">Approved By</div></div>
+        <div><div className="sign-line">Received By</div></div>
+      </div>
+    </div>
+  );
+}
+
 function PurchaseOrderModal({ suppliers, products, role, onClose, onSave }) {
   const { settings } = useConfig();
   const isAdmin = can('po_order', role, settings?.rolePermissions);
@@ -3543,7 +3641,7 @@ function PurchaseOrderModal({ suppliers, products, role, onClose, onSave }) {
 }
 
 // --- PO detail + receive ---
-function PoDetailModal({ po, role, onClose, onReceive }) {
+function PoDetailModal({ po, role, onClose, onReceive, onPrint }) {
   const { settings } = useConfig();
   if (!po) return null;
   const receivable = can('po_receive', role, settings?.rolePermissions) && po.status !== 'received' && po.status !== 'cancelled';
@@ -3568,6 +3666,7 @@ function PoDetailModal({ po, role, onClose, onReceive }) {
           {po.notes ? <p style={{ color: '#666', marginTop: 8 }}>{po.notes}</p> : null}
           <div className="form-actions">
             {receivable && <button className="btn btn-success" onClick={() => onReceive(po)}><i className="fas fa-dolly"></i> Receive into Stock</button>}
+            <button className="btn btn-secondary" onClick={onPrint}><i className="fas fa-print"></i> Print PO (A4)</button>
             <button className="btn btn-secondary" onClick={onClose}><i className="fas fa-times"></i> Close</button>
           </div>
         </div>
@@ -3581,6 +3680,7 @@ function PurchaseOrdersView({ user, role }) {
   const { settings } = useConfig();
   const [showModal, setShowModal] = useState(false);
   const [viewPo, setViewPo] = useState(null);
+  const [printPo, setPrintPo] = useState(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [load, setLoad] = useState('');
   const tableRef = useRef(null);
@@ -3672,7 +3772,8 @@ function PurchaseOrdersView({ user, role }) {
       {loading && <TableSkeleton rows={8} columns={8} />}
       <div style={{ display: loading ? 'none' : 'block' }}><table id="poTable" className="display" style={{ width: '100%' }}></table>{pos.length > 0 && <SummaryBar items={[{ label: 'POs', value: poSummary.count }, { label: 'Total Value', value: money(poSummary.total) }, { label: 'Open (unreceived)', value: money(poSummary.open) }]} />}</div>
       {showModal && <PurchaseOrderModal suppliers={suppliers} products={products} role={role} onClose={() => setShowModal(false)} onSave={handleSave} />}
-      {viewPo && <PoDetailModal po={viewPo} role={role} onClose={() => setViewPo(null)} onReceive={doReceive} />}
+      {viewPo && <PoDetailModal po={viewPo} role={role} onClose={() => setViewPo(null)} onReceive={doReceive} onPrint={() => setPrintPo(viewPo)} />}
+      {printPo && <PoPrintDocument po={printPo} onDone={() => setPrintPo(null)} />}
     </div>
   );
 }
@@ -4348,8 +4449,8 @@ function SettingsView({ user, role }) {
               {PERMISSION_DEFS.map(p => (
                 <tr key={p.key}>
                   <td>{p.label}<div className="cell-sub">{p.module}</div></td>
-                  <td style={{ textAlign: 'center' }}><input type="checkbox" checked={!!rolePerms.User[p.key]} onChange={() => togglePerm('User', p.key)} /></td>
-                  <td style={{ textAlign: 'center' }}><input type="checkbox" checked={!!rolePerms.Viewer[p.key]} onChange={() => togglePerm('Viewer', p.key)} /></td>
+                  <td style={{ textAlign: 'center' }}><input type="checkbox" className="toggle" checked={!!rolePerms.User[p.key]} onChange={() => togglePerm('User', p.key)} /></td>
+                  <td style={{ textAlign: 'center' }}><input type="checkbox" className="toggle" checked={!!rolePerms.Viewer[p.key]} onChange={() => togglePerm('Viewer', p.key)} /></td>
                 </tr>
               ))}
             </tbody>
