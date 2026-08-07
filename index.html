@@ -596,7 +596,7 @@ const CATEGORY_SKU_PREFIX = {
   'Make to Stock': 'BKU',
   'Make to Order': 'PUL',
   'Seasonings': 'BMK',
-  'Ready to Use Seasoning': 'BMT',
+  'Spices': 'BMT',
   'Finished Goods': 'PKT',
   'Additional/Ala Carte': 'ADD'
 };
@@ -615,6 +615,17 @@ seedDemoData();
 // ensure the standard business categories exist - adds any that are missing, never removes/renames existing ones
 async function seedCategories() {
   try {
+    // one-time renames: old category label -> new label, keeps the same Firebase key/id
+    const renames = { 'Ready to Use Seasoning': 'Spices' };
+    const snap0 = await db.ref('categories').once('value');
+    const existing0 = snap0.val() || {};
+    const renameUpdates = {};
+    Object.entries(existing0).forEach(function(e) {
+      const key = e[0], cat = e[1];
+      if (renames[cat.name]) renameUpdates['categories/' + key + '/name'] = renames[cat.name];
+    });
+    if (Object.keys(renameUpdates).length) await db.ref().update(renameUpdates);
+
     const names = Object.keys(CATEGORY_SKU_PREFIX);
     const snap = await db.ref('categories').once('value');
     const existing = snap.val() || {};
@@ -1094,7 +1105,7 @@ const CATEGORY_OPTS = [
   { value: 'Make to Stock', label: 'Make to Stock' },
   { value: 'Make to Order', label: 'Make to Order' },
   { value: 'Seasonings', label: 'Seasonings' },
-  { value: 'Ready to Use Seasoning', label: 'Ready to Use Seasoning' },
+  { value: 'Spices', label: 'Spices' },
   { value: 'Finished Goods', label: 'Finished Goods' },
   { value: 'Additional/Ala Carte', label: 'Additional/Ala Carte' }
 ];
